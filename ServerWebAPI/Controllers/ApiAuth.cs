@@ -1,12 +1,14 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Numerics;
 using System.Text;
-using System.Threading.Tasks;
+using System.Security.Claims;
+using System.IdentityModel.Tokens.Jwt;
 using ServerWebAPI.DataBase;
 using ServerWebAPI.Models;
 
@@ -82,6 +84,11 @@ namespace ServerWebAPI.Controllers
 
                 return Ok(new { message = "Đăng nhập thành công", userId = user.Id, token });
             }
+            catch (Exception ex)
+            {
+                return BadRequest();
+            }
+
         }
 
         private static string HashPassword(string password)
