@@ -1,7 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using ServerWebAPI.Controllers;
-using ServerWebAPI.DataBase;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -9,8 +7,10 @@ using System.Net;
 using System.Numerics;
 using System.Text;
 using System.Threading.Tasks;
+using ServerWebAPI.DataBase;
+using ServerWebAPI.Models;
 
-namespace ServerWebAPI.API
+namespace ServerWebAPI.Controllers
 {
     [Route("api/auth")]
     [ApiController]
@@ -56,9 +56,9 @@ namespace ServerWebAPI.API
                     return BadRequest(ex.Message);
                 }
                 return Ok();
-            } catch
-            {
-                MessageBox.Show("BUG");
+            }
+            catch (Exception ex) { 
+                return BadRequest(ex.Message);
             }
         }
 
@@ -78,7 +78,7 @@ namespace ServerWebAPI.API
                 if (user == null)
                     return Unauthorized("Sai tên hoặc password.");
 
-                var token = GenerateJwtToken(user)
+                var token = GenerateJwtToken(user);
 
                 return Ok(new { message = "Đăng nhập thành công", userId = user.Id, token });
             }
