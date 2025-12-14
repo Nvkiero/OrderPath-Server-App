@@ -1,8 +1,8 @@
-﻿//using System;
-
-//public class Class1
-//{
-//	public Class1()
-//	{
-//	}
-//}
+﻿namespace ServerWebAPI.Models
+{
+    public class Avatar
+    {
+        public string Username { get; set; }
+        public string AvatarUrl { get; set; }
+    }
+}

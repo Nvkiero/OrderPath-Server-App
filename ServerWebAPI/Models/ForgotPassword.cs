@@ -1,10 +1,7 @@
-﻿//using System;
-//using System.ComponentModel.DataAnnotations;
-
-//public class ServerWebAPI.Controllers
-//{
-//	public ForgotPassword()
-//	{
-		
-//	}
-//}
+﻿namespace ServerWebAPI.Models
+{
+    public class ForgotPassword
+    {
+        public string Email { get; set; }
+    }
+}
