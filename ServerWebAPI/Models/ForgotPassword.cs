@@ -1,10 +1,13 @@
-﻿//using System;
-//using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 
-//public class ServerWebAPI.Controllers
-//{
-//	public ForgotPassword()
-//	{
-		
-//	}
-//}
+namespace ServerWebAPI.Controllers
+{
+    public class UserLogin
+    {
+        [Required]
+        public string Username { get; set; }
+
+        [Required]
+        public string Password { get; set; }
+    }
+}
