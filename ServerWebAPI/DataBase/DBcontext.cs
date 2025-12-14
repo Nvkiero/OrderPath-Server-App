@@ -1,6 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
-using ServerWebAPI.Controllers;
-
+using ServerWebAPI.Models;
 namespace ServerWebAPI.DataBase
 {
     public class AppDbContext : DbContext

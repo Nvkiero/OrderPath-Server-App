@@ -1,7 +1,8 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace ServerWebAPI.Controllers
+namespace ServerWebAPI.Models
 {
+
     public class UserLogin
     {
         [Required]

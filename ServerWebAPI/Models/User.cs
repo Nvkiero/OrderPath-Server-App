@@ -6,8 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace ServerWebAPI.Controllers
-{
+namespace ServerWebAPI.Models { 
     public class User
     {
         [Key] // Khai báo khóa chính
