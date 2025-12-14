@@ -12,7 +12,6 @@ using System.Threading.Tasks;
 
 namespace ServerWebAPI.API
 {
-    // Đăng kí
     [Route("api/auth")]
     [ApiController]
     public class AuthController : ControllerBase
@@ -23,7 +22,7 @@ namespace ServerWebAPI.API
         {
             _context = context;
         }
-
+        // Đăng kí
         [HttpPost("register")]
         public async Task<IActionResult> Register([FromBody] UserRegister user)
         {
@@ -54,7 +53,12 @@ namespace ServerWebAPI.API
             {
                 return BadRequest(ex.Message);
             }
-            return Ok();
+
+            return Ok(new
+            {
+                message = "Đăng kí thành công",
+                userId = newUser.Id
+            });
         }
     }
 }
