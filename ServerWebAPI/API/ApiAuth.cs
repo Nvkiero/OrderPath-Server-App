@@ -1,10 +1,18 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using ServerWebAPI.Controllers;
 using ServerWebAPI.DataBase;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Numerics;
-namespace ServerWebAPI.Controllers
+using System.Text;
+using System.Threading.Tasks;
+
+namespace ServerWebAPI.API
 {
+    // Đăng kí
     [Route("api/auth")]
     [ApiController]
     public class AuthController : ControllerBase
@@ -37,16 +45,15 @@ namespace ServerWebAPI.Controllers
             };
 
             try
-{
+            {
                 _context.Users.Add(newUser);
                 await _context.SaveChangesAsync();
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 return BadRequest(ex.Message);
             }
             return Ok();
         }
     }
-
 }
