@@ -28,9 +28,10 @@ namespace ServerWebAPI.API
         public async Task<IActionResult> Register([FromBody] UserRegister user)
         {
             if (user == null)
-                return BadRequest();
+                return BadRequest("");
             if (await _context.Users.AnyAsync(u => u.Username == user.Username))
                 return BadRequest();
+            
 
             var newUser = new User
             {
