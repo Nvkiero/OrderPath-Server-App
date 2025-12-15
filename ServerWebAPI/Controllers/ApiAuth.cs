@@ -11,6 +11,7 @@ using System.Security.Claims;
 using System.IdentityModel.Tokens.Jwt;
 using ServerWebAPI.DataBase;
 using ServerWebAPI.Models;
+using Microsoft.AspNetCore.Authorization;
 
 namespace ServerWebAPI.Controllers
 {
@@ -19,10 +20,12 @@ namespace ServerWebAPI.Controllers
     public class AuthController : ControllerBase
     {
         private readonly AppDbContext _context;
+        private readonly IConfiguration _configuration; // Thêm biến thành viên IConfiguration
 
-        public AuthController(AppDbContext context)
+        public AuthController(AppDbContext context, IConfiguration configuration)
         {
             _context = context;
+            _configuration = configuration;
         }
         // Đăng kí
         [HttpPost("register")]
@@ -57,7 +60,8 @@ namespace ServerWebAPI.Controllers
                 {
                     return BadRequest(ex.Message);
                 }
-                return Ok();
+                return Ok(); //có thể thay như thế này để thống nhất return Ok(new { status = true, message = "Đăng ký thành công" });
+
             }
             catch (Exception ex) { 
                 return BadRequest(ex.Message);
@@ -121,6 +125,99 @@ namespace ServerWebAPI.Controllers
                 signingCredentials: creds);
 
             return new JwtSecurityTokenHandler().WriteToken(token);
+        }
+
+        [Authorize]
+        [HttpPut("change-password")]
+        public async Task<IActionResult> ChangePassword([FromBody] ChangePassword model)
+        {
+            try
+            {
+                if (model == null)
+                    return BadRequest(new { status = false, message = "Dữ liệu không hợp lệ" });
+
+                // Lấy userId từ token
+                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+                if (userIdClaim == null)
+                    return Unauthorized(new { status = false, message = "Token không hợp lệ" });
+
+                int userId = int.Parse(userIdClaim.Value);
+
+                var user = await _context.Users.FindAsync(userId);
+                if (user == null)
+                    return NotFound(new { status = false, message = "Không tìm thấy người dùng" });
+
+                // Kiểm tra mật khẩu cũ
+                if (user.Password != HashPassword(model.OldPassword))
+                {
+                    return BadRequest(new { status = false, message = "Mật khẩu cũ không đúng" });
+                }
+
+                // Cập nhật mật khẩu mới
+                user.Password = HashPassword(model.NewPassword);
+                await _context.SaveChangesAsync();
+
+                return Ok(new
+                {
+                    status = true,
+                    message = "Thay đổi mật khẩu thành công"
+                });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { status = false, message = ex.Message });
+            }
+        }
+
+        [HttpPost("forgot-password")]
+        public async Task<IActionResult> ForgotPassword([FromBody] ForgotPassword model)
+        {
+            try
+            {
+                if (model == null)
+                    return BadRequest(new { status = false, message = "Dữ liệu không hợp lệ" });
+
+                var user = await _context.Users
+                    .FirstOrDefaultAsync(u => u.Email == model.Email);
+
+                if (user == null)
+                    return NotFound(new { status = false, message = "Email không tồn tại" });
+
+                // Kiểm tra OTP
+                string correctOtp = _configuration["OtpSettings:DefaultOtp"];
+                // Kiểm tra OTP có được cấu hình không
+                if (string.IsNullOrEmpty(correctOtp))
+                {
+                    return StatusCode(500, new
+                    {
+                        status = false,
+                        message = "OTP chưa được cấu hình"
+                    });
+                }
+
+                if (model.OTP != correctOtp)
+                {
+                    return BadRequest(new
+                    {
+                        status = false,
+                        message = "OTP không đúng hoặc đã hết hạn"
+                    });
+                }
+
+                // Cập nhật mật khẩu mới
+                user.Password = HashPassword(model.NewPassword);
+                await _context.SaveChangesAsync();
+
+                return Ok(new
+                {
+                    status = true,
+                    message = "Đặt lại mật khẩu thành công"
+                });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { status = false, message = ex.Message });
+            }
         }
     }
 }
