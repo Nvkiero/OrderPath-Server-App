@@ -14,7 +14,7 @@ using ServerWebAPI.Models;
 
 namespace ServerWebAPI.Controllers
 {
-    [Route("api/auth")]
+    [Route("api/[controllers]")]
     [ApiController]
     public class AuthController : ControllerBase
     {
@@ -31,10 +31,9 @@ namespace ServerWebAPI.Controllers
             try
             {
                 if (user == null)
-                    return BadRequest("");
+                    return BadRequest();
                 if (await _context.Users.AnyAsync(u => u.Username == user.Username))
                     return BadRequest();
-
 
                 var newUser = new User
                 {

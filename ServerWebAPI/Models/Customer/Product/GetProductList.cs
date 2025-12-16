@@ -2,5 +2,8 @@
 {
     public class GetProductList
     {
+        public List<ProductDetail> Products { get; set; } = new List<ProductDetail>();
+
     }
 }
+

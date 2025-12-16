@@ -1,8 +1,8 @@
 ﻿using System.ComponentModel.DataAnnotations;
 
-namespace ServerWebAPI.Models
+namespace ServerWebAPI.Models.Customer.Product
 {
-    public class Product
+    public class ProductDetail
     {
         [Key]
         public int Id { get; set; }
