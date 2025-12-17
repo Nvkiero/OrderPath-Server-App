@@ -21,6 +21,13 @@ namespace ServerWebAPI.Controllers
     {
         private readonly AppDbContext _context;
         private readonly IConfiguration _configuration; // Thêm biến thành viên IConfiguration
+        private static Dictionary<string, OtpInfo> OtpStore = new();
+
+        // Hàm tạo OTP ngẫu nhiên
+        private string GenerateOtp()
+        {
+            return new Random().Next(100000, 999999).ToString();
+        }
 
         public AuthController(AppDbContext context, IConfiguration configuration)
         {
@@ -60,7 +67,7 @@ namespace ServerWebAPI.Controllers
                 {
                     return BadRequest(ex.Message);
                 }
-                return Ok(); //có thể thay như thế này để thống nhất return Ok(new { status = true, message = "Đăng ký thành công" });
+                return Ok(); 
 
             }
             catch (Exception ex) { 
@@ -183,30 +190,44 @@ namespace ServerWebAPI.Controllers
                 if (user == null)
                     return NotFound(new { status = false, message = "Email không tồn tại" });
 
-                // Kiểm tra OTP
-                string correctOtp = _configuration["OtpSettings:DefaultOtp"];
-                // Kiểm tra OTP có được cấu hình không
-                if (string.IsNullOrEmpty(correctOtp))
-                {
-                    return StatusCode(500, new
-                    {
-                        status = false,
-                        message = "OTP chưa được cấu hình"
-                    });
-                }
-
-                if (model.OTP != correctOtp)
+                // Kiểm tra OTP có tồn tại không
+                if (!OtpStore.ContainsKey(model.Email))
                 {
                     return BadRequest(new
                     {
                         status = false,
-                        message = "OTP không đúng hoặc đã hết hạn"
+                        message = "OTP không tồn tại hoặc đã hết hạn"
+                    });
+                }
+
+                var otpInfo = OtpStore[model.Email];
+
+                // Kiểm tra hết hạn
+                if (otpInfo.ExpiredAt < DateTime.Now)
+                {
+                    OtpStore.Remove(model.Email);
+                    return BadRequest(new
+                    {
+                        status = false,
+                        message = "OTP đã hết hạn"
+                    });
+                }
+
+                // Kiểm tra đúng OTP
+                if (otpInfo.Code != model.OTP)
+                {
+                    return BadRequest(new
+                    {
+                        status = false,
+                        message = "OTP không đúng"
                     });
                 }
 
                 // Cập nhật mật khẩu mới
                 user.Password = HashPassword(model.NewPassword);
                 await _context.SaveChangesAsync();
+
+                OtpStore.Remove(model.Email);
 
                 return Ok(new
                 {
@@ -219,5 +240,31 @@ namespace ServerWebAPI.Controllers
                 return BadRequest(new { status = false, message = ex.Message });
             }
         }
+
+        [HttpPost("send-otp")]
+        public async Task<IActionResult> SendOtp([FromBody] string email)
+        {
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == email);
+            if (user == null)
+                return NotFound(new { status = false, message = "Email không tồn tại" });
+
+            string otp = GenerateOtp();
+
+            OtpStore[email] = new OtpInfo
+            {
+                Code = otp,
+                ExpiredAt = DateTime.Now.AddMinutes(5)
+            };
+
+            // Demo gửi OTP qua email bằng cách in ra console
+            Console.WriteLine($"OTP của {email}: {otp}");
+
+            return Ok(new
+            {
+                status = true,
+                message = "OTP đã được gửi"
+            });
+        }
+
     }
 }
