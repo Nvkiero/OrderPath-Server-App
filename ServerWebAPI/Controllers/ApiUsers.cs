@@ -2,7 +2,7 @@
 using ServerWebAPI.DataBase;
 using ServerWebAPI.Models;
 
-namespace ServerWebAPI.API
+namespace ServerWebAPI.Controllers
 {
     [ApiController]
     [Route("users")]
