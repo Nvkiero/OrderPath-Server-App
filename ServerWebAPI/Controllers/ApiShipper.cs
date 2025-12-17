@@ -7,5 +7,7 @@ namespace ServerWebAPI.Controllers
     [ApiController]
     public class ApiShipper : ControllerBase
     {
+
     }
+
 }

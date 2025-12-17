@@ -24,7 +24,8 @@ namespace ServerWebAPI.Controllers
                 {
                     Message = "User not found",
                     Status = false
-                }); 
+                });
             }
         }
+    }
 }
