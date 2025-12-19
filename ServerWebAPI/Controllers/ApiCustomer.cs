@@ -10,7 +10,7 @@ using System.ComponentModel.DataAnnotations;
 using static ServerWebAPI.Models.Customer.Order.GetDetailOrder;
 namespace ServerWebAPI.Controllers
 {
-    [Route("api/[controller]")]
+    [Route("customer")]
     [ApiController]
     public class ApiCustomer : ControllerBase
     {

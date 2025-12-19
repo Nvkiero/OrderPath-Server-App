@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace ServerWebAPI.Controllers
 {
-    [Route("api/[controller]")]
+    [Route("shipper")]
     [ApiController]
     public class ApiShipper : ControllerBase
     {

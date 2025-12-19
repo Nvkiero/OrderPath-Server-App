@@ -15,7 +15,7 @@ using Microsoft.AspNetCore.Authorization;
 
 namespace ServerWebAPI.Controllers
 {
-    [Route("api/[controllers]")]
+    [Route("auth")]
     [ApiController]
     public class AuthController : ControllerBase
     {
@@ -38,40 +38,33 @@ namespace ServerWebAPI.Controllers
         [HttpPost("register")]
         public async Task<IActionResult> Register([FromBody] UserRegister user)
         {
+            if (user == null)
+                return BadRequest();
+            if (await _context.Users.AnyAsync(u => u.Username == user.Username))
+                return BadRequest();
+
+            var newUser = new User
+            {
+                Username = user.Username,
+                Password = HashPassword(user.Password),
+                Fullname = user.Fullname,
+                Email = user.Email,
+                Phone = user.Phone,
+                Address = user.Address,
+                Age = user.Age,
+                Birth = user.Birth,
+            };
+
             try
             {
-                if (user == null)
-                    return BadRequest();
-                if (await _context.Users.AnyAsync(u => u.Username == user.Username))
-                    return BadRequest();
-
-                var newUser = new User
-                {
-                    Username = user.Username,
-                    Password = HashPassword(user.Password),
-                    Fullname = user.Fullname,
-                    Email = user.Email,
-                    Phone = user.Phone,
-                    Address = user.Address,
-                    Age = user.Age,
-                    Birth = user.Birth,
-                };
-
-                try
-                {
-                    _context.Users.Add(newUser);
-                    await _context.SaveChangesAsync();
-                }
-                catch (Exception ex)
-                {
-                    return BadRequest(ex.Message);
-                }
-                return Ok(); 
-
+                _context.Users.Add(newUser);
+                await _context.SaveChangesAsync();
             }
-            catch (Exception ex) { 
-                return BadRequest(ex.Message);
+            catch (Exception ex)
+            {
+                return BadRequest(new { ex.Message });
             }
+            return Ok();
         }
 
         [HttpPost("login")]
@@ -80,7 +73,7 @@ namespace ServerWebAPI.Controllers
             try
             {
                 if (login == null)
-                    return BadRequest("Nhập thông tin đầy đủ.");
+                    return BadRequest(new {message = "không nhận được thông điệp của client"});
 
                 string hashedPassword = HashPassword(login.Password);
 
@@ -88,15 +81,16 @@ namespace ServerWebAPI.Controllers
                     .FirstOrDefaultAsync(u => u.Username == login.Username && u.Password == hashedPassword);
 
                 if (user == null)
-                    return Unauthorized("Sai tên hoặc password.");
+                    return Unauthorized(new { message = "sai mật khẩu hoặc username"});
+
 
                 var token = GenerateJwtToken(user);
 
                 return Ok(new { message = "Đăng nhập thành công", userId = user.Id, token });
             }
-            catch (Exception ex)
+            catch
             {
-                return BadRequest();
+                return BadRequest(new {message = "bug khủng"}); 
             }
 
         }
@@ -112,26 +106,32 @@ namespace ServerWebAPI.Controllers
         }
         private string GenerateJwtToken(User user)
         {
+            var config = HttpContext.RequestServices.GetRequiredService<IConfiguration>();
+
             var claims = new[]
             {
-                new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
-                new Claim(ClaimTypes.Name, user.Username)
-            };
+        new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
+        new Claim(ClaimTypes.Name, user.Username)
+    };
 
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(
-                HttpContext.RequestServices.GetRequiredService<IConfiguration>()["Jwt:Key"]));
+            var key = new SymmetricSecurityKey(
+                Encoding.UTF8.GetBytes(config["Jwt:Key"])
+            );
+
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
             var token = new JwtSecurityToken(
-                issuer: HttpContext.RequestServices.GetRequiredService<IConfiguration>()["Jwt:Issuer"],
-                audience: HttpContext.RequestServices.GetRequiredService<IConfiguration>()["Jwt:Audience"],
+                issuer: config["Jwt:Issuer"],
+                audience: config["Jwt:Audience"],
                 claims: claims,
-                expires: DateTime.Now.AddMinutes(
-                    double.Parse(HttpContext.RequestServices.GetRequiredService<IConfiguration>()["Jwt:ExpiresInMinutes"])),
-                signingCredentials: creds);
+                expires: DateTime.UtcNow.AddMinutes(
+                    config.GetValue<int>("Jwt:ExpiresInMinutes")),
+                signingCredentials: creds
+            );
 
             return new JwtSecurityTokenHandler().WriteToken(token);
         }
+
 
         [Authorize]
         [HttpPut("change-password")]

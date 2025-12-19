@@ -7,8 +7,8 @@ using System.Collections.Generic;
 
 namespace ServerWebAPI.Controllers
 {
-    [ApiController]
     [Route("seller")]
+    [ApiController]
     public class ApiSellerController : ControllerBase
     {
         private readonly AppDbContext _context;

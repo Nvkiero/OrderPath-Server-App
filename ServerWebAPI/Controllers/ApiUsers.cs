@@ -4,8 +4,8 @@ using ServerWebAPI.Models;
 
 namespace ServerWebAPI.Controllers
 {
+    [Route("[controller]")]
     [ApiController]
-    [Route("users")]
     public class ApiUsers : ControllerBase
     {
         private readonly AppDbContext _context;
