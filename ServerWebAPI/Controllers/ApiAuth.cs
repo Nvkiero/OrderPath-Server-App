@@ -70,30 +70,47 @@ namespace ServerWebAPI.Controllers
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] UserLogin login)
         {
-            try
+            if (login == null)
+                return BadRequest(new { message = "không nhận được thông điệp của client" });
+
+            string hashedPassword = HashPassword(login.Password);
+
+            var user = await _context.Users
+                .FirstOrDefaultAsync(u =>
+                    u.Username == login.Username &&
+                    u.Password == hashedPassword);
+
+            if (user == null)
+                return Unauthorized(new { message = "Sai username hoặc mật khẩu" });
+
+            string role = "Buyer";
+
+            if (login.Role == "Shop")
             {
-                if (login == null)
-                    return BadRequest(new {message = "không nhận được thông điệp của client"});
+                if (!await _context.Shops.AnyAsync(s => s.UserId == user.Id))
+                    return Unauthorized(new { message = "Tài khoản không phải Shop" });
 
-                string hashedPassword = HashPassword(login.Password);
-
-                var user = await _context.Users
-                    .FirstOrDefaultAsync(u => u.Username == login.Username && u.Password == hashedPassword);
-
-                if (user == null)
-                    return Unauthorized(new { message = "sai mật khẩu hoặc username"});
-
-
-                var token = GenerateJwtToken(user);
-
-                return Ok(new { message = "Đăng nhập thành công", userId = user.Id, token });
+                role = "Shop";
             }
-            catch
+            else if (login.Role == "Shipper")
             {
-                return BadRequest(new {message = "bug khủng"}); 
+                if (!await _context.Shippers.AnyAsync(s => s.UserId == user.Id))
+                    return Unauthorized(new { message = "Tài khoản không phải Shipper" });
+
+                role = "Shipper";
             }
 
+            var token = GenerateJwtToken(user, role);
+
+            return Ok(new
+            {
+                message = "Đăng nhập thành công",
+                userId = user.Id,
+                role,
+                token
+            });
         }
+
 
         private static string HashPassword(string password)
         {
@@ -104,14 +121,15 @@ namespace ServerWebAPI.Controllers
                 return Convert.ToBase64String(hash);
             }
         }
-        private string GenerateJwtToken(User user)
+        private string GenerateJwtToken(User user, string role)
         {
             var config = HttpContext.RequestServices.GetRequiredService<IConfiguration>();
 
             var claims = new[]
             {
         new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
-        new Claim(ClaimTypes.Name, user.Username)
+        new Claim(ClaimTypes.Name, user.Username),
+        new Claim(ClaimTypes.Role, role) // ⭐ QUAN TRỌNG
     };
 
             var key = new SymmetricSecurityKey(
@@ -131,6 +149,7 @@ namespace ServerWebAPI.Controllers
 
             return new JwtSecurityTokenHandler().WriteToken(token);
         }
+
 
 
         [Authorize]
