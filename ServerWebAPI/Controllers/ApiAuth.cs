@@ -1,17 +1,19 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using ServerWebAPI.DataBase;
+using ServerWebAPI.Models;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IdentityModel.Tokens.Jwt;
 using System.Linq;
 using System.Net;
 using System.Numerics;
-using System.Text;
 using System.Security.Claims;
-using System.IdentityModel.Tokens.Jwt;
-using ServerWebAPI.DataBase;
-using ServerWebAPI.Models;
-using Microsoft.AspNetCore.Authorization;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace ServerWebAPI.Controllers
 {
@@ -20,19 +22,19 @@ namespace ServerWebAPI.Controllers
     public class AuthController : ControllerBase
     {
         private readonly AppDbContext _context;
-        private readonly IConfiguration _configuration; // Thêm biến thành viên IConfiguration
-        private static Dictionary<string, OtpInfo> OtpStore = new();
+        private readonly IConfiguration _configuration; // Thêm biến thành viên IConfiguration, nếu không dùng có thể bỏ
+        private static ConcurrentDictionary<string, OtpInfo> OtpStore = new();
 
         // Hàm tạo OTP ngẫu nhiên
         private string GenerateOtp()
         {
-            return new Random().Next(100000, 999999).ToString();
+            return RandomNumberGenerator.GetInt32(100000, 999999).ToString();
         }
 
         public AuthController(AppDbContext context, IConfiguration configuration)
         {
             _context = context;
-            _configuration = configuration;
+            _configuration = configuration;//nếu không dùng có thể bỏ
         }
         // Đăng kí
         [HttpPost("register")]
@@ -223,7 +225,7 @@ namespace ServerWebAPI.Controllers
                 // Kiểm tra hết hạn
                 if (otpInfo.ExpiredAt < DateTime.Now)
                 {
-                    OtpStore.Remove(model.Email);
+                    OtpStore.TryRemove(model.Email, out _);
                     return BadRequest(new
                     {
                         status = false,
@@ -245,7 +247,7 @@ namespace ServerWebAPI.Controllers
                 user.Password = HashPassword(model.NewPassword);
                 await _context.SaveChangesAsync();
 
-                OtpStore.Remove(model.Email);
+                OtpStore.TryRemove(model.Email, out _);
 
                 return Ok(new
                 {
@@ -260,22 +262,27 @@ namespace ServerWebAPI.Controllers
         }
 
         [HttpPost("send-otp")]
-        public async Task<IActionResult> SendOtp([FromBody] string email)
+        public async Task<IActionResult> SendOtp([FromBody] SendOtpRequest model)
         {
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == email);
+            if (model == null || string.IsNullOrWhiteSpace(model.Email))
+                return BadRequest(new { status = false, message = "Email không hợp lệ" });
+
+            var user = await _context.Users
+                .FirstOrDefaultAsync(u => u.Email == model.Email);
+
             if (user == null)
                 return NotFound(new { status = false, message = "Email không tồn tại" });
 
             string otp = GenerateOtp();
 
-            OtpStore[email] = new OtpInfo
+            OtpStore[model.Email] = new OtpInfo
             {
                 Code = otp,
                 ExpiredAt = DateTime.Now.AddMinutes(5)
             };
 
             // Demo gửi OTP qua email bằng cách in ra console
-            Console.WriteLine($"OTP của {email}: {otp}");
+            Console.WriteLine($"OTP của {model.Email}: {otp}");
 
             return Ok(new
             {
