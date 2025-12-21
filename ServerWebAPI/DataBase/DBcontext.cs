@@ -3,7 +3,7 @@ using ServerWebAPI.Models;
 using ServerWebAPI.Models.Customer.Cart;
 using ServerWebAPI.Models.Customer.Order;
 using ServerWebAPI.Models.Customer.Product;
-using ServerWebAPI.Models.Shop;
+//using ServerWebAPI.Models.Shop;
 using ServerWebAPI.Models.Shipper;
 
 namespace ServerWebAPI.DataBase
@@ -17,8 +17,8 @@ namespace ServerWebAPI.DataBase
         public DbSet<CartItem> CartItems { get; set; } = null!;
         public DbSet<Order> Orders { get; set; } = null!;
         public DbSet<OrderItem> OrderItems { get; set; } = null!;
-        public DbSet<Shop> Shops { get; set; } = null!;
-        public DbSet<Shipper> Shippers { get; set; } = null!;
+        //public DbSet<Shop> Shops { get; set; } = null!;
+        public DbSet<ShipperProfile> Shippers { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

@@ -68,48 +68,48 @@ namespace ServerWebAPI.Controllers
         }
 
         [HttpPost("login")]
-        public async Task<IActionResult> Login([FromBody] UserLogin login)
-        {
-            if (login == null)
-                return BadRequest(new { message = "không nhận được thông điệp của client" });
+        //public async Task<IActionResult> Login([FromBody] UserLogin login)
+        //{
+        //    if (login == null)
+        //        return BadRequest(new { message = "không nhận được thông điệp của client" });
 
-            string hashedPassword = HashPassword(login.Password);
+        //    string hashedPassword = HashPassword(login.Password);
 
-            var user = await _context.Users
-                .FirstOrDefaultAsync(u =>
-                    u.Username == login.Username &&
-                    u.Password == hashedPassword);
+        //    var user = await _context.Users
+        //        .FirstOrDefaultAsync(u =>
+        //            u.Username == login.Username &&
+        //            u.Password == hashedPassword);
 
-            if (user == null)
-                return Unauthorized(new { message = "Sai username hoặc mật khẩu" });
+        //    if (user == null)
+        //        return Unauthorized(new { message = "Sai username hoặc mật khẩu" });
 
-            string role = "Buyer";
+        //    string role = "Buyer";
 
-            if (login.Role == "Shop")
-            {
-                if (!await _context.Shops.AnyAsync(s => s.UserId == user.Id))
-                    return Unauthorized(new { message = "Tài khoản không phải Shop" });
+        //    if (login.Role == "Shop")
+        //    {
+        //        if (!await _context.Shops.AnyAsync(s => s.UserId == user.Id))
+        //            return Unauthorized(new { message = "Tài khoản không phải Shop" });
 
-                role = "Shop";
-            }
-            else if (login.Role == "Shipper")
-            {
-                if (!await _context.Shippers.AnyAsync(s => s.UserId == user.Id))
-                    return Unauthorized(new { message = "Tài khoản không phải Shipper" });
+        //        role = "Shop";
+        //    }
+        //    else if (login.Role == "Shipper")
+        //    {
+        //        if (!await _context.Shippers.AnyAsync(s => s.UserId == user.Id))
+        //            return Unauthorized(new { message = "Tài khoản không phải Shipper" });
 
-                role = "Shipper";
-            }
+        //        role = "Shipper";
+        //    }
 
-            var token = GenerateJwtToken(user, role);
+        //    var token = GenerateJwtToken(user, role);
 
-            return Ok(new
-            {
-                message = "Đăng nhập thành công",
-                userId = user.Id,
-                role,
-                token
-            });
-        }
+        //    return Ok(new
+        //    {
+        //        message = "Đăng nhập thành công",
+        //        userId = user.Id,
+        //        role,
+        //        token
+        //    });
+        //}
 
 
         private static string HashPassword(string password)

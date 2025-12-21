@@ -8,6 +8,7 @@ using ServerWebAPI.Models.Customer.Order;
 using ServerWebAPI.Models.Customer.Product;
 using System.ComponentModel.DataAnnotations;
 using static ServerWebAPI.Models.Customer.Order.GetDetailOrder;
+
 namespace ServerWebAPI.Controllers
 {
     [Route("customer")]
@@ -24,7 +25,7 @@ namespace ServerWebAPI.Controllers
         [HttpGet("product")]
         public async Task<IActionResult> GetListProduct()
         {
-            var ListProducts = await _context.ListProduct.ToListAsync();
+            var ListProducts = await _context.Products.ToListAsync();
             if (!ListProducts.Any()) return NotFound();
             return Ok(new GetProductList
                 {
@@ -35,7 +36,7 @@ namespace ServerWebAPI.Controllers
         [HttpGet("product/{id}")]
         public async Task<IActionResult> GetProduct(int id)
         {
-            var product = await _context.ListProduct.FindAsync(id);
+            var product = await _context.Products.FindAsync(id);
             if (product == null) return NotFound();
 
             return Ok(new ProductDetail
@@ -53,7 +54,7 @@ namespace ServerWebAPI.Controllers
         [HttpGet("product/search")]
         public async Task<IActionResult> SearchProduct([FromQuery] string name)
         {
-            var products = await _context.ListProduct
+            var products = await _context.Products
                 .Where(p => p.Name.ToLower().Contains(name))
                 .ToListAsync();
             if (products == null) return NotFound();
@@ -79,7 +80,7 @@ namespace ServerWebAPI.Controllers
         [HttpPost("cart/add")]
         public async Task<IActionResult> AddToCart([FromBody] AddCart req)
         {
-            var product = await _context.ListProduct.FindAsync(req.ProductId);
+            var product = await _context.Products.FindAsync(req.ProductId);
             if (product == null) return NotFound("Product not found");
 
             var cartItem = await _context.CartItems

@@ -1,5 +1,8 @@
 ﻿using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using ServerWebAPI.DataBase;
+using ServerWebAPI.Models.Shipper;
 
 namespace ServerWebAPI.Controllers
 {
@@ -9,7 +12,7 @@ namespace ServerWebAPI.Controllers
     {
         private readonly AppDbContext _context;
 
-        public GetDataBase(AppDbContext context)
+        public ApiShipper(AppDbContext context)
         {
             _context = context;
         }
@@ -23,9 +26,8 @@ namespace ServerWebAPI.Controllers
                     p.Id,
                     p.Name,
                     p.Price,
-                    p.ShopName,
                     p.Description,
-                    p.ImgProduct
+                    p.Image,
                 })
                 .ToListAsync();
 
@@ -37,17 +39,17 @@ namespace ServerWebAPI.Controllers
             return Ok(products);
         }
 
-        [HttpGet("users/{id}")]
-        public async Task<ActionResult<ShipperProfile>> GetShipperInfo(int id)
-        {
-            var shipper = await _context.ShipperProfiles.FindAsync(id);
+        //[HttpGet("/users/{id}")]
+        //public async Task<ActionResult<ShipperProfile>> GetShipperInfo(int id)
+        //{
+        //    var shipper = await _context.Shippers.FindAsync(id);
 
-            if (shipper == null)
-            {
-                return NotFound(new { message = $"Shipper hiện tại không tồn tại" });
-            }
+        //    if (shipper == null)
+        //    {
+        //        return NotFound(new { message = $"Shipper hiện tại không tồn tại" });
+        //    }
 
-            return Ok(shipper);
-        }
+        //    return Ok(shipper);
+        //}
     }
 }

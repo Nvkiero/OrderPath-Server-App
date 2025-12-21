@@ -4,7 +4,7 @@ using ServerWebAPI.Models;
 
 namespace ServerWebAPI.Controllers
 {
-    [Route("[controller]")]
+    [Route("users")]
     [ApiController]
     public class ApiUsers : ControllerBase
     {
