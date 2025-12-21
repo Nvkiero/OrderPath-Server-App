@@ -1,155 +1,169 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using ServerWebAPI.DataBase;
+using Microsoft.EntityFrameworkCore;
+using ServerWebAPI.DataBase; // Namespace chứa class SellerDB
 using ServerWebAPI.Models.Seller;
-using ServerWebAPI.Models.Seller.QuanLyDonHang;
 using System;
-using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace ServerWebAPI.Controllers
 {
-    [Route("seller")]
     [ApiController]
+    [Route("seller")] // Client gọi vào: https://domain/seller/...
     public class ApiSellerController : ControllerBase
     {
-        private readonly AppDbContext _context;
+        // Sửa kiểu dữ liệu từ AppDbContext sang SellerDB
+        private readonly SellerDB _context;
 
-        public ApiSellerController(AppDbContext context)
+        // Inject SellerDB vào Constructor
+        public ApiSellerController(SellerDB context)
         {
             _context = context;
         }
 
-        // Thêm sản phẩm
-        // POST /seller/products
-        [HttpPost("products")]
-        public IActionResult AddProduct([FromBody] AddProduct dto)
-        {
-            // Demo (chưa lưu DB thật)
-            int newProductId = new Random().Next(1000, 9999);
+        // ============================================
+        // 1. QUẢN LÝ SẢN PHẨM (Product)
+        // ============================================
 
-            return Ok(new
+        // Thêm sản phẩm
+        // POST: /seller/products
+        [HttpPost("products")]
+        public async Task<IActionResult> AddProduct([FromBody] AddProductDTO dto)
+        {
+            if (dto == null) return BadRequest("Dữ liệu không hợp lệ");
+
+            var newProduct = new Product
             {
-                ProductId = newProductId,
-                Status = "Success",
-                Error = false
-            });
+                Name = dto.Name,
+                Price = dto.Price,
+                Quantity = dto.Quantity,
+                Image = dto.Image,
+                Category = dto.Category,
+                Description = dto.Description,
+                Status = true // Mặc định là hiện
+            };
+
+            _context.Products.Add(newProduct);
+            await _context.SaveChangesAsync();
+
+            return Ok(new { ProductId = newProduct.Id, Status = "Success", Error = false });
         }
 
         // Sửa sản phẩm
-        // PUT /seller/products/{id}
+        // PUT: /seller/products/{id}
         [HttpPut("products/{id}")]
-        public IActionResult UpdateProduct(int id, [FromBody] ChangeProduct dto)
+        public async Task<IActionResult> UpdateProduct(int id, [FromBody] ChangeProductDTO dto)
         {
-            if (id != dto.id)
-            {
-                return BadRequest(new
-                {
-                    Status = "Failed",
-                    Error = true
-                });
-            }
+            if (id != dto.id) return BadRequest("ID không khớp");
 
-            return Ok(new
-            {
-                Status = "Success",
-                Error = false
-            });
+            var product = await _context.Products.FindAsync(id);
+            if (product == null) return NotFound(new { Status = "Failed", Msg = "Không tìm thấy sản phẩm" });
+
+            // Cập nhật thông tin
+            product.Name = dto.Name;
+            product.Price = dto.Price;
+            product.Quantity = dto.Quantity;
+            product.Image = dto.Image;
+            product.Category = dto.Category;
+            product.Description = dto.Description;
+
+            await _context.SaveChangesAsync();
+            return Ok(new { Status = "Success", Error = false });
         }
 
         // Xóa sản phẩm
-        // PUT /seller/products/{id}/delete
+        // PUT: /seller/products/{id}/delete
         [HttpPut("products/{id}/delete")]
-        public IActionResult DeleteProduct(int id)
+        public async Task<IActionResult> DeleteProduct(int id)
         {
-            return Ok(new
-            {
-                Status = "Success",
-                Error = false
-            });
+            var product = await _context.Products.FindAsync(id);
+            if (product == null) return NotFound();
+
+            // Xóa thật khỏi database
+            _context.Products.Remove(product);
+
+            // Hoặc xóa mềm (ẩn đi) thì dùng dòng dưới:
+            // product.Status = false; 
+
+            await _context.SaveChangesAsync();
+            return Ok(new { Status = "Success", Error = false });
         }
 
-        // Lấy danh sách sản phẩm của shop
-        // GET /seller/products
+        // Lấy danh sách sản phẩm
+        // GET: /seller/products
         [HttpGet("products")]
-        public IActionResult GetProductList()
+        public async Task<IActionResult> GetProductList()
         {
-            var products = new List<object>
-            {
-                new {
-                    Id = 1,
-                    Name = "Áo thun",
-                    Price = 120000,
-                    Quantity = 20,
-                    Image = "https://img.demo/ao.jpg",
-                    Status = true
-                },
-                new {
-                    Id = 2,
-                    Name = "Quần jean",
-                    Price = 300000,
-                    Quantity = 10,
-                    Image = "https://img.demo/quan.jpg",
-                    Status = false
-                }
-            };
+            var products = await _context.Products
+                .Select(p => new ProductResponseDTO
+                {
+                    Id = p.Id,
+                    Name = p.Name,
+                    Price = p.Price,
+                    Quantity = p.Quantity,
+                    Image = p.Image,
+                    Status = p.Status
+                })
+                .ToListAsync();
 
             return Ok(products);
         }
 
-        // =========================
-        // QUẢN LÝ ĐƠN HÀNG
-        // =========================
+        // ============================================
+        // 2. QUẢN LÝ ĐƠN HÀNG (Order)
+        // ============================================
 
-        // Lấy danh sách đơn hàng của shop
-        // GET /seller/orders
+        // Lấy danh sách đơn hàng
+        // GET: /seller/orders
         [HttpGet("orders")]
-        public IActionResult GetOrders()
+        public async Task<IActionResult> GetOrders()
         {
-            var orders = new List<GetOrder>
-            {
-                new GetOrder
+            var orders = await _context.Orders
+                .Select(o => new OrderResponseDTO
                 {
-                    OrderId = 1,
-                    CustomerId = 101,
-                    Total = 500000,
-                    Status = "NEW",
-                    Date = DateTime.Now
-                },
-                new GetOrder
-                {
-                    OrderId = 2,
-                    CustomerId = 102,
-                    Total = 1200000,
-                    Status = "CONFIRMED",
-                    Date = DateTime.Now.AddDays(-1)
-                }
-            };
+                    OrderId = o.OrderId,
+                    CustomerId = o.CustomerId,
+                    Total = o.Total,
+                    Status = o.Status,
+                    Date = o.Date
+                })
+                .OrderByDescending(o => o.Date) // Mới nhất lên đầu
+                .ToListAsync();
 
             return Ok(orders);
         }
 
         // Xác nhận đơn hàng
-        // PUT /seller/orders/{id}/confirm
+        // PUT: /seller/orders/{id}/confirm
         [HttpPut("orders/{id}/confirm")]
-        public IActionResult ConfirmOrder(int id)
+        public async Task<IActionResult> ConfirmOrder(int id)
         {
+            var order = await _context.Orders.FindAsync(id);
+            if (order == null) return NotFound();
+
+            order.Status = "CONFIRMED";
+            await _context.SaveChangesAsync();
+
             return Ok(new
             {
                 Status = "Confirmed",
                 Error = false,
-                ShipperOrderId = new Random().Next(1000, 9999)
+                ShipperOrderId = new Random().Next(10000, 99999) // Tạo mã vận đơn giả
             });
         }
 
         // Hủy đơn hàng
-        // PUT /seller/orders/{id}/cancel
+        // PUT: /seller/orders/{id}/cancel
         [HttpPut("orders/{id}/cancel")]
-        public IActionResult CancelOrder(int id)
+        public async Task<IActionResult> CancelOrder(int id)
         {
-            return Ok(new
-            {
-                Status = "Cancelled",
-                Error = false
-            });
+            var order = await _context.Orders.FindAsync(id);
+            if (order == null) return NotFound();
+
+            order.Status = "CANCELLED";
+            await _context.SaveChangesAsync();
+
+            return Ok(new { Status = "Cancelled", Error = false });
         }
     }
 }
