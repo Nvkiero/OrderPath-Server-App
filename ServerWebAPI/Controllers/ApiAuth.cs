@@ -15,7 +15,7 @@ using Microsoft.AspNetCore.Authorization;
 
 namespace ServerWebAPI.Controllers
 {
-    [Route("api/[controllers]")]
+    [Route("auth")]
     [ApiController]
     public class AuthController : ControllerBase
     {
