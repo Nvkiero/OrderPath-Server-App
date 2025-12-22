@@ -1,5 +1,7 @@
-﻿using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using ServerWebAPI.DataBase;
+using ServerWebAPI.Modules.Db_Orderpath;
 
 namespace ServerWebAPI.Controllers
 {
@@ -9,45 +11,69 @@ namespace ServerWebAPI.Controllers
     {
         private readonly AppDbContext _context;
 
-        public GetDataBase(AppDbContext context)
+        public ApiShipper(AppDbContext context)
         {
             _context = context;
         }
 
+        // GET: shipper/orders
+        // Logic cũ: Lấy List Products. Logic mới: Lấy List Orders cần giao.
         [HttpGet("orders")]
-        public async Task<ActionResult<IEnumerable<object>>> GetShipperOrder()
+        public async Task<IActionResult> GetShipperOrder()
         {
-            var products = await _context.Products
-                .Select(p => new
+            // Lấy các đơn hàng đang ở trạng thái "Shipping" và chưa có Shipper
+            var orders = await _context.Orders
+                .Where(o => o.Status == "Shipping" && o.ShipperId == null)
+                .Include(o => o.User)
+                .Select(o => new
                 {
-                    p.Id,
-                    p.Name,
-                    p.Price,
-                    p.ShopName,
-                    p.Description,
-                    p.ImgProduct
+                    Id = o.Id, // Order ID
+                    Name = "Đơn hàng của " + o.User.Fullname, // Fake tên product bằng tên đơn
+                    Price = o.TotalAmount, // Tổng tiền
+                    Address = o.User.Address,
+                    Date = o.CreatedAt
                 })
                 .ToListAsync();
 
-            if (products == null || !products.Any())
+            if (!orders.Any())
             {
                 return NotFound("Không có đơn hàng nào cần vận chuyển");
             }
 
-            return Ok(products);
+            return Ok(orders);
         }
 
+        // GET: shipper/users/{id}
+        // Lấy thông tin Shipper Profile
         [HttpGet("users/{id}")]
-        public async Task<ActionResult<ShipperProfile>> GetShipperInfo(int id)
+        public async Task<IActionResult> GetShipperInfo(int id)
         {
-            var shipper = await _context.ShipperProfiles.FindAsync(id);
+            var shipper = await _context.Shippers.FindAsync(id);
 
             if (shipper == null)
             {
                 return NotFound(new { message = $"Shipper hiện tại không tồn tại" });
             }
 
-            return Ok(shipper);
+            return Ok(new
+            {
+                shipper.Id,
+                shipper.Vehicle,
+                shipper.Status,
+                shipper.Rating
+            });
+        }
+
+        // Thêm API nhận đơn để Shipper hoạt động được với luồng mới
+        [HttpPut("orders/{orderId}/accept")]
+        public async Task<IActionResult> AcceptOrder(int orderId, [FromQuery] int shipperId)
+        {
+            var order = await _context.Orders.FindAsync(orderId);
+            if (order == null) return NotFound();
+
+            order.ShipperId = shipperId;
+            await _context.SaveChangesAsync();
+            return Ok(new { message = "Đã nhận đơn" });
         }
     }
 }

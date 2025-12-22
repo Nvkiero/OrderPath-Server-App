@@ -1,16 +1,10 @@
-﻿using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using ServerWebAPI.DataBase;
-using ServerWebAPI.Models;
-using System;
+using ServerWebAPI.Modules.Db_Orderpath; // Model chuẩn
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.IdentityModel.Tokens.Jwt;
-using System.Linq;
-using System.Net;
-using System.Numerics;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
@@ -19,259 +13,110 @@ namespace ServerWebAPI.Controllers
 {
     [Route("auth")]
     [ApiController]
-    public class AuthController : ControllerBase
+    public class ApiAuth : ControllerBase
     {
         private readonly AppDbContext _context;
-        private readonly IConfiguration _configuration; // Thêm biến thành viên IConfiguration, nếu không dùng có thể bỏ
+        private readonly IConfiguration _configuration;
+
+        // Giữ nguyên logic lưu OTP trong Ram như code cũ của bạn
         private static ConcurrentDictionary<string, OtpInfo> OtpStore = new();
 
-        // Hàm tạo OTP ngẫu nhiên
-        private string GenerateOtp()
-        {
-            return RandomNumberGenerator.GetInt32(100000, 999999).ToString();
-        }
-
-        public AuthController(AppDbContext context, IConfiguration configuration)
+        public ApiAuth(AppDbContext context, IConfiguration configuration)
         {
             _context = context;
-            _configuration = configuration;//nếu không dùng có thể bỏ
-        }
-        // Đăng kí
-        [HttpPost("register")]
-        public async Task<IActionResult> Register([FromBody] UserRegister user)
-        {
-            if (user == null)
-                return BadRequest();
-            if (await _context.Users.AnyAsync(u => u.Username == user.Username))
-                return BadRequest();
-
-            var newUser = new User
-            {
-                Username = user.Username,
-                Password = HashPassword(user.Password),
-                Fullname = user.Fullname,
-                Email = user.Email,
-                Phone = user.Phone,
-                Address = user.Address,
-                Age = user.Age,
-                Birth = user.Birth,
-            };
-
-            try
-            {
-                _context.Users.Add(newUser);
-                await _context.SaveChangesAsync();
-            }
-            catch (Exception ex)
-            {
-                return BadRequest(new { ex.Message });
-            }
-            return Ok();
+            _configuration = configuration;
         }
 
-        [HttpPost("login")]
-        public async Task<IActionResult> Login([FromBody] UserLogin login)
+        // Helper: Hash Password (để dùng chung)
+        public static string HashPassword(string password)
         {
-            if (login == null)
-                return BadRequest(new { message = "không nhận được thông điệp của client" });
-
-            string hashedPassword = HashPassword(login.Password);
-
-            var user = await _context.Users
-                .FirstOrDefaultAsync(u =>
-                    u.Username == login.Username &&
-                    u.Password == hashedPassword);
-
-            if (user == null)
-                return Unauthorized(new { message = "Sai username hoặc mật khẩu" });
-
-            string role = "Buyer";
-
-            if (login.Role == "Shop")
-            {
-                if (!await _context.Shops.AnyAsync(s => s.UserId == user.Id))
-                    return Unauthorized(new { message = "Tài khoản không phải Shop" });
-
-                role = "Shop";
-            }
-            else if (login.Role == "Shipper")
-            {
-                if (!await _context.Shippers.AnyAsync(s => s.UserId == user.Id))
-                    return Unauthorized(new { message = "Tài khoản không phải Shipper" });
-
-                role = "Shipper";
-            }
-
-            var token = GenerateJwtToken(user, role);
-
-            return Ok(new
-            {
-                message = "Đăng nhập thành công",
-                userId = user.Id,
-                role,
-                token
-            });
-        }
-
-
-        private static string HashPassword(string password)
-        {
-            using (var sha256 = System.Security.Cryptography.SHA256.Create())
+            using (var sha256 = SHA256.Create())
             {
                 var bytes = Encoding.UTF8.GetBytes(password);
                 var hash = sha256.ComputeHash(bytes);
                 return Convert.ToBase64String(hash);
             }
         }
-        private string GenerateJwtToken(User user, string role)
+
+        // Helper: Tạo OTP ngẫu nhiên (như code cũ)
+        private string GenerateOtp()
         {
-            var config = HttpContext.RequestServices.GetRequiredService<IConfiguration>();
-
-            var claims = new[]
-            {
-        new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
-        new Claim(ClaimTypes.Name, user.Username),
-        new Claim(ClaimTypes.Role, role) // ⭐ QUAN TRỌNG
-    };
-
-            var key = new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes(config["Jwt:Key"])
-            );
-
-            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-
-            var token = new JwtSecurityToken(
-                issuer: config["Jwt:Issuer"],
-                audience: config["Jwt:Audience"],
-                claims: claims,
-                expires: DateTime.UtcNow.AddMinutes(
-                    config.GetValue<int>("Jwt:ExpiresInMinutes")),
-                signingCredentials: creds
-            );
-
-            return new JwtSecurityTokenHandler().WriteToken(token);
+            return RandomNumberGenerator.GetInt32(100000, 999999).ToString();
         }
 
-
-
-        [Authorize]
-        [HttpPut("change-password")]
-        public async Task<IActionResult> ChangePassword([FromBody] ChangePassword model)
+        // POST: auth/register
+        [HttpPost("register")]
+        public async Task<IActionResult> Register([FromBody] RegisterDTO req)
         {
-            try
+            if (await _context.Users.AnyAsync(u => u.Username == req.Username))
+                return BadRequest(new { message = "Username đã tồn tại" });
+
+            var newUser = new User
             {
-                if (model == null)
-                    return BadRequest(new { status = false, message = "Dữ liệu không hợp lệ" });
+                Username = req.Username,
+                PasswordHash = HashPassword(req.Password), // Lưu pass đã mã hóa
+                Fullname = req.Fullname,
+                Email = req.Email,
+                Phone = req.Phone,
+                Address = req.Address
+            };
 
-                // Lấy userId từ token
-                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
-                if (userIdClaim == null)
-                    return Unauthorized(new { status = false, message = "Token không hợp lệ" });
+            _context.Users.Add(newUser);
+            await _context.SaveChangesAsync();
 
-                int userId = int.Parse(userIdClaim.Value);
-
-                var user = await _context.Users.FindAsync(userId);
-                if (user == null)
-                    return NotFound(new { status = false, message = "Không tìm thấy người dùng" });
-
-                // Kiểm tra mật khẩu cũ
-                if (user.Password != HashPassword(model.OldPassword))
-                {
-                    return BadRequest(new { status = false, message = "Mật khẩu cũ không đúng" });
-                }
-
-                // Cập nhật mật khẩu mới
-                user.Password = HashPassword(model.NewPassword);
-                await _context.SaveChangesAsync();
-
-                return Ok(new
-                {
-                    status = true,
-                    message = "Thay đổi mật khẩu thành công"
-                });
-            }
-            catch (Exception ex)
-            {
-                return BadRequest(new { status = false, message = ex.Message });
-            }
+            return Ok(new { message = "Đăng ký thành công", userId = newUser.Id });
         }
 
-        [HttpPost("forgot-password")]
-        public async Task<IActionResult> ForgotPassword([FromBody] ForgotPassword model)
+        // POST: auth/login
+        [HttpPost("login")]
+        public async Task<IActionResult> Login([FromBody] LoginDTO req)
         {
-            try
+            string hashInfo = HashPassword(req.Password);
+
+            var user = await _context.Users
+                .FirstOrDefaultAsync(u => u.Username == req.Username && u.PasswordHash == hashInfo);
+
+            if (user == null)
+                return Unauthorized(new { message = "Sai tài khoản hoặc mật khẩu" });
+
+            // Logic phân quyền (Seller/Shipper)
+            string role = "Customer";
+            int entityId = 0;
+
+            var shop = await _context.Shops.FirstOrDefaultAsync(s => s.UserId == user.Id);
+            if (shop != null) { role = "Seller"; entityId = shop.Id; }
+
+            if (req.RoleRequest == "Shipper")
             {
-                if (model == null)
-                    return BadRequest(new { status = false, message = "Dữ liệu không hợp lệ" });
-
-                var user = await _context.Users
-                    .FirstOrDefaultAsync(u => u.Email == model.Email);
-
-                if (user == null)
-                    return NotFound(new { status = false, message = "Email không tồn tại" });
-
-                // Kiểm tra OTP có tồn tại không
-                if (!OtpStore.ContainsKey(model.Email))
-                {
-                    return BadRequest(new
-                    {
-                        status = false,
-                        message = "OTP không tồn tại hoặc đã hết hạn"
-                    });
-                }
-
-                var otpInfo = OtpStore[model.Email];
-
-                // Kiểm tra hết hạn
-                if (otpInfo.ExpiredAt < DateTime.Now)
-                {
-                    OtpStore.TryRemove(model.Email, out _);
-                    return BadRequest(new
-                    {
-                        status = false,
-                        message = "OTP đã hết hạn"
-                    });
-                }
-
-                // Kiểm tra đúng OTP
-                if (otpInfo.Code != model.OTP)
-                {
-                    return BadRequest(new
-                    {
-                        status = false,
-                        message = "OTP không đúng"
-                    });
-                }
-
-                // Cập nhật mật khẩu mới
-                user.Password = HashPassword(model.NewPassword);
-                await _context.SaveChangesAsync();
-
-                OtpStore.TryRemove(model.Email, out _);
-
-                return Ok(new
-                {
-                    status = true,
-                    message = "Đặt lại mật khẩu thành công"
-                });
+                var shipper = await _context.Shops.FirstOrDefaultAsync(s => s.UserId == user.Id);
+                // Lưu ý: Logic shipper check tạm thời check Shop bảng, bạn cần bảng Shipper nếu có
+                // Ở đây mình check bảng Shippers theo DB mới
+                var realShipper = await _context.Shippers.FirstOrDefaultAsync(s => s.UserId == user.Id);
+                if (realShipper != null) { role = "Shipper"; entityId = realShipper.Id; }
             }
-            catch (Exception ex)
+
+            var token = GenerateJwtToken(user, role, entityId);
+
+            return Ok(new
             {
-                return BadRequest(new { status = false, message = ex.Message });
-            }
+                message = "Đăng nhập thành công",
+                userId = user.Id,
+                username = user.Username,
+                role,
+                token
+            });
         }
 
+        // POST: auth/send-otp (Giữ nguyên tính năng cũ)
         [HttpPost("send-otp")]
         public async Task<IActionResult> SendOtp([FromBody] SendOtpRequest model)
         {
             if (model == null || string.IsNullOrWhiteSpace(model.Email))
                 return BadRequest(new { status = false, message = "Email không hợp lệ" });
 
-            var user = await _context.Users
-                .FirstOrDefaultAsync(u => u.Email == model.Email);
-
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == model.Email);
             if (user == null)
-                return NotFound(new { status = false, message = "Email không tồn tại" });
+                return NotFound(new { status = false, message = "Email không tồn tại trong hệ thống" });
 
             string otp = GenerateOtp();
 
@@ -281,15 +126,100 @@ namespace ServerWebAPI.Controllers
                 ExpiredAt = DateTime.Now.AddMinutes(5)
             };
 
-            // Demo gửi OTP qua email bằng cách in ra console
+            // Demo in ra console (thực tế gửi mail)
             Console.WriteLine($"OTP của {model.Email}: {otp}");
 
-            return Ok(new
-            {
-                status = true,
-                message = "OTP đã được gửi"
-            });
+            return Ok(new { status = true, message = "OTP đã được gửi (Check Console server)" });
         }
 
+        // POST: auth/forgot-password (Giữ nguyên tính năng cũ)
+        [HttpPost("forgot-password")]
+        public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest model)
+        {
+            if (!OtpStore.ContainsKey(model.Email))
+                return BadRequest(new { status = false, message = "Vui lòng yêu cầu gửi OTP trước" });
+
+            var otpInfo = OtpStore[model.Email];
+            if (otpInfo.Code != model.OtpCode)
+                return BadRequest(new { status = false, message = "Mã OTP không đúng" });
+
+            if (DateTime.Now > otpInfo.ExpiredAt)
+                return BadRequest(new { status = false, message = "Mã OTP đã hết hạn" });
+
+            // OTP đúng -> Đổi mật khẩu
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == model.Email);
+            if (user != null)
+            {
+                user.PasswordHash = HashPassword(model.NewPassword);
+                await _context.SaveChangesAsync();
+                OtpStore.TryRemove(model.Email, out _); // Xóa OTP sau khi dùng
+                return Ok(new { status = true, message = "Đặt lại mật khẩu thành công" });
+            }
+
+            return BadRequest(new { status = false, message = "Lỗi xử lý" });
+        }
+
+        private string GenerateJwtToken(User user, string role, int entityId)
+        {
+            var keyStr = _configuration["Jwt:Key"] ?? "Key_Must_Be_Very_Long_For_Security_Reasons_32Chars";
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(keyStr));
+            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+            var claims = new List<Claim>
+            {
+                new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
+                new Claim(ClaimTypes.Name, user.Username),
+                new Claim(ClaimTypes.Role, role),
+                new Claim("EntityId", entityId.ToString())
+            };
+
+            var token = new JwtSecurityToken(
+                issuer: _configuration["Jwt:Issuer"],
+                audience: _configuration["Jwt:Audience"],
+                claims: claims,
+                expires: DateTime.UtcNow.AddHours(4),
+                signingCredentials: creds
+            );
+
+            return new JwtSecurityTokenHandler().WriteToken(token);
+        }
+    }
+
+    // ==========================================
+    // DTO CLASSES
+    // ==========================================
+    public class OtpInfo
+    {
+        public string Code { get; set; } = string.Empty;
+        public DateTime ExpiredAt { get; set; }
+    }
+
+    public class RegisterDTO
+    {
+        public string Username { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
+        public string Fullname { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public string Phone { get; set; } = string.Empty;
+        public string Address { get; set; } = string.Empty;
+    }
+
+    public class LoginDTO
+    {
+        public string Username { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
+        public string? RoleRequest { get; set; }
+    }
+
+    public class SendOtpRequest
+    {
+        public string Email { get; set; } = string.Empty;
+    }
+
+    public class ForgotPasswordRequest
+    {
+        public string Email { get; set; } = string.Empty;
+        public string OtpCode { get; set; } = string.Empty;
+        public string NewPassword { get; set; } = string.Empty;
     }
 }

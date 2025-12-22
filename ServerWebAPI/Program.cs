@@ -6,9 +6,6 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-//Dòng code dưới là khai báo cho database SellerDB, nếu gộp chung lại vào 1 database thì chỉnh luôn dòng dưới
-builder.Services.AddDbContext<SellerDB>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 
 builder.Services.AddControllers();
