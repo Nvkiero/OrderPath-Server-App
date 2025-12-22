@@ -1,6 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using ServerWebAPI.Models;
+
 // QUAN TRỌNG: Trỏ vào thư mục chứa Model mới của bạn
-using ServerWebAPI.Modules.Db_Orderpath;
 
 namespace ServerWebAPI.DataBase
 {

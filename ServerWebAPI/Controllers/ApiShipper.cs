@@ -1,7 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using ServerWebAPI.DataBase;
-using ServerWebAPI.Modules.Db_Orderpath;
+using ServerWebAPI.Models;
 
 namespace ServerWebAPI.Controllers
 {

@@ -2,7 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using ServerWebAPI.DataBase;
-using ServerWebAPI.Modules.Db_Orderpath; // Model chuẩn
+using ServerWebAPI.Models;
 using System.Collections.Concurrent;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;

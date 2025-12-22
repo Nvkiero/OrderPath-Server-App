@@ -2,7 +2,7 @@
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Text.Json.Serialization; // Để tránh lỗi loop khi trả về JSON
 
-namespace ServerWebAPI.Modules.Db_Orderpath
+namespace ServerWebAPI.Models
 {
     [Table("Users")]
     public class User

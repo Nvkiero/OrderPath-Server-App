@@ -1,8 +1,7 @@
-﻿using ServerWebAPI.Models.Customer.Order;
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
-namespace ServerWebAPI.Modules.Db_Orderpath
+namespace ServerWebAPI.Models
 {
     [Table("Orders")]
     public class Order

@@ -2,7 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using ServerWebAPI.DataBase;
-using ServerWebAPI.Modules.Db_Orderpath; // Import Entity chuẩn
+using ServerWebAPI.Models; // Import Entity chuẩn
 
 namespace ServerWebAPI.Controllers
 {
