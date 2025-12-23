@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Http;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using ServerWebAPI.DataBase;
@@ -16,17 +17,13 @@ namespace ServerWebAPI.Controllers
         {
             _context = context;
         }
-
-        // ==========================================
         // 1. PRODUCT (SẢN PHẨM)
-        // ==========================================
-
-        [HttpGet("product")]
+        // lay danh sach san pham con hang
+        [HttpGet("products")]
         public async Task<IActionResult> GetListProduct()
         {
-            // Lấy tất cả sản phẩm có Quantity > 0 (còn hàng)
             var products = await _context.Products
-                .Where(p => p.Quantity > 0)
+                .Where(p => (p.Quantity ?? 0) > 0)
                 .Select(p => new CustomerProductDTO
                 {
                     Id = p.Id,
@@ -39,36 +36,43 @@ namespace ServerWebAPI.Controllers
                 })
                 .ToListAsync();
 
-            if (!products.Any()) return NotFound(new { message = "Không có sản phẩm nào" });
-
-            return Ok(new { Products = products });
+            return Ok(products);
         }
-
-        [HttpGet("product/{id}")]
+        // lay chi tiet san pham theo id
+        [HttpGet("products/{id}")]
         public async Task<IActionResult> GetProduct(int id)
         {
-            var product = await _context.Products.FindAsync(id);
-            if (product == null) return NotFound(new { message = "Sản phẩm không tồn tại" });
+            var product = await _context.Products
+                .Where(p => p.Id == id && (p.Quantity ?? 0) > 0)
+                .Select(p => new CustomerProductDTO
+                {
+                    Id = p.Id,
+                    Name = p.Name,
+                    Price = p.Price,
+                    Quantity = p.Quantity ?? 0,
+                    Image = p.Image,
+                    Description = p.Description,
+                    Category = p.Category
+                })
+                .FirstOrDefaultAsync();
 
-            return Ok(new CustomerProductDTO
-            {
-                Id = product.Id,
-                Name = product.Name,
-                Price = product.Price,
-                Quantity = product.Quantity ?? 0,
-                Image = product.Image,
-                Description = product.Description,
-                Category = product.Category
-            });
+            if (product == null)
+                return NotFound(new { message = "Sản phẩm không tồn tại hoặc đã hết hàng" });
+
+            return Ok(product);
         }
-
-        [HttpGet("product/search")]
+        // tim kiem danh sach san pham theo ten
+        [HttpGet("products/search")]
         public async Task<IActionResult> SearchProduct([FromQuery] string name)
         {
-            if (string.IsNullOrEmpty(name)) return BadRequest("Vui lòng nhập tên");
+            if (string.IsNullOrWhiteSpace(name))
+                return BadRequest(new { message = "Vui lòng nhập tên" });
 
             var products = await _context.Products
-                .Where(p => p.Name!.ToLower().Contains(name.ToLower()))
+                .Where(p =>
+                    (p.Quantity ?? 0) > 0 &&
+                    EF.Functions.Like(p.Name!, $"%{name}%")
+                )
                 .Select(p => new CustomerProductDTO
                 {
                     Id = p.Id,
@@ -80,21 +84,18 @@ namespace ServerWebAPI.Controllers
                 })
                 .ToListAsync();
 
-            if (!products.Any()) return NotFound(new { message = "Không tìm thấy sản phẩm" });
-
-            return Ok(new { SearchProducts = products });
+            return Ok(products);
         }
-
-        // ==========================================
         // 2. CART (GIỎ HÀNG)
-        // ==========================================
-
-        [HttpGet("cart/{userId}")]
-        public async Task<IActionResult> GetCart(int userId)
+        // lay danh sach san pham trong gio hang cua user da dang nhap
+        [Authorize(Roles = "Customer,Seller")]
+        [HttpGet("cart")]
+        public async Task<IActionResult> GetCart()
         {
+            int userId = int.Parse(User.FindFirst("userId")!.Value);
+
             var cartItems = await _context.CartItems
-                .Include(c => c.Product)
-                .Where(c => c.UserId == userId)
+                .Where(c => c.UserId == userId && c.Product != null)
                 .Select(c => new CartItemDTO
                 {
                     ProductId = c.ProductId,
@@ -105,117 +106,142 @@ namespace ServerWebAPI.Controllers
                 })
                 .ToListAsync();
 
-            if (!cartItems.Any()) return Ok(new { Items = new List<CartItemDTO>(), Message = "Giỏ hàng trống" });
-
-            return Ok(new { Items = cartItems });
+            return Ok(cartItems);
         }
 
+        [Authorize(Roles = "Customer,Seller")]
         [HttpPost("cart/add")]
         public async Task<IActionResult> AddToCart([FromBody] AddCartRequest req)
         {
-            // Kiểm tra sản phẩm có tồn tại không
-            var product = await _context.Products.FindAsync(req.ProductId);
-            if (product == null) return NotFound("Sản phẩm không tồn tại");
+            if (req.Quantity <= 0)
+                return BadRequest(new { message = "Số lượng không hợp lệ" });
 
-            // Kiểm tra trong giỏ hàng đã có món này chưa
+            int userId = int.Parse(User.FindFirst("userId")!.Value);
+
+            var product = await _context.Products
+                .FirstOrDefaultAsync(p => p.Id == req.ProductId && (p.Quantity ?? 0) > 0);
+
+            if (product == null)
+                return NotFound(new { message = "Sản phẩm không tồn tại hoặc hết hàng" });
+
             var cartItem = await _context.CartItems
-                .FirstOrDefaultAsync(c => c.UserId == req.UserId && c.ProductId == req.ProductId);
+                .FirstOrDefaultAsync(c => c.UserId == userId && c.ProductId == req.ProductId);
+
+            int currentQty = cartItem?.Quantity ?? 0;
+            if (currentQty + req.Quantity > product.Quantity)
+                return BadRequest(new { message = "Vượt quá số lượng tồn kho" });
 
             if (cartItem != null)
             {
-                // Đã có -> Tăng số lượng
                 cartItem.Quantity += req.Quantity;
             }
             else
             {
-                // Chưa có -> Tạo mới
-                cartItem = new CartItem
+                _context.CartItems.Add(new CartItem
                 {
-                    UserId = req.UserId,
+                    UserId = userId,
                     ProductId = req.ProductId,
                     Quantity = req.Quantity
-                };
-                _context.CartItems.Add(cartItem);
+                });
             }
 
             await _context.SaveChangesAsync();
-            return Ok(new { success = true, message = "Đã thêm vào giỏ hàng" });
+
+            return Ok(new { message = "Đã thêm vào giỏ hàng" });
         }
 
+
+        [Authorize(Roles = "Customer,Seller")]
         [HttpDelete("cart/remove/{productId}")]
-        public async Task<IActionResult> RemoveFromCart(int productId, [FromQuery] int userId)
+        public async Task<IActionResult> RemoveFromCart(int productId)
         {
+            if (productId <= 0)
+                return BadRequest(new { message = "ProductId không hợp lệ" });
+
+            int userId = int.Parse(User.FindFirst("userId")!.Value);
+
             var cartItem = await _context.CartItems
                 .FirstOrDefaultAsync(c => c.UserId == userId && c.ProductId == productId);
 
             if (cartItem == null)
-                return NotFound(new { success = false, message = "Sản phẩm không có trong giỏ hàng" });
+                return NotFound(new { message = "Sản phẩm không có trong giỏ hàng" });
 
             _context.CartItems.Remove(cartItem);
             await _context.SaveChangesAsync();
 
-            return Ok(new { success = true, message = "Đã xóa khỏi giỏ hàng" });
+            return Ok(new { message = "Đã xóa khỏi giỏ hàng" });
         }
 
-        // ==========================================
         // 3. ORDER (ĐẶT HÀNG)
-        // ==========================================
-
+        // checkout gio hang
+        [Authorize(Roles = "Customer,Seller")]
         [HttpPost("order/checkout")]
-        public async Task<IActionResult> Checkout([FromQuery] int userId)
+        public async Task<IActionResult> Checkout()
         {
-            // 1. Lấy CartItem kèm thông tin Product (để lấy Giá và ShopId)
+            int userId = int.Parse(User.FindFirst("userId")!.Value);
+            // kiem tra gio hang co san pham chua de dat hang
             var cartItems = await _context.CartItems
-                .Include(c => c.Product)
-                .Where(c => c.UserId == userId)
+                .Where(c => c.UserId == userId && c.Product != null)
+                .Select(c => new
+                {
+                    Cart = c,
+                    Product = c.Product!
+                })
                 .ToListAsync();
 
             if (!cartItems.Any())
-                return BadRequest(new { success = false, message = "Giỏ hàng trống" });
+                return BadRequest(new { message = "Giỏ hàng trống" });
 
-            // 2. Tính tổng tiền
-            decimal totalAmount = cartItems.Sum(c => (c.Product?.Price ?? 0) * c.Quantity);
+            // xem con hang khong
+            foreach (var item in cartItems)
+            {
+                if (item.Cart.Quantity > item.Product.Quantity)
+                    return BadRequest(new
+                    {
+                        message = $"Sản phẩm {item.Product.Name} không đủ tồn kho"
+                    });
+            }
 
-            // 3. Tạo Order Master
+            decimal totalAmount = cartItems.Sum(i => i.Product.Price * i.Cart.Quantity);
+
             var order = new Order
             {
                 UserId = userId,
                 TotalAmount = totalAmount,
                 Status = "Pending",
                 CreatedAt = DateTime.UtcNow,
-                // ShipperId để null
+                OrderItems = cartItems.Select(i => new OrderItem
+                {
+                    ProductId = i.Product.Id,
+                    Quantity = i.Cart.Quantity,
+                    Price = i.Product.Price,
+                    ShopId = i.Product.ShopId
+                }).ToList()
             };
 
-            // 4. Tạo List OrderItem
-            // LƯU Ý QUAN TRỌNG: Phải gán ShopId cho OrderItem vì Database yêu cầu
-            var orderItems = cartItems.Select(c => new OrderItem
-            {
-                ProductId = c.ProductId,
-                Quantity = c.Quantity,
-                Price = c.Product!.Price,
-                ShopId = c.Product.ShopId // <--- Bắt buộc phải có cái này
-            }).ToList();
+            // sau khi dat thanh cong thi giam so luong san pham trong kho
+            foreach (var item in cartItems)
+                item.Product.Quantity -= item.Cart.Quantity;
 
-            order.OrderItems = orderItems; // Gán list items vào order
-
-            // 5. Lưu Order & Xóa Cart
             _context.Orders.Add(order);
-            _context.CartItems.RemoveRange(cartItems); // Xóa giỏ hàng sau khi mua
+            _context.CartItems.RemoveRange(cartItems.Select(i => i.Cart));
 
             await _context.SaveChangesAsync();
 
             return Ok(new
             {
-                success = true,
                 orderId = order.Id,
                 total = order.TotalAmount,
                 message = "Đặt hàng thành công"
             });
         }
-
-        [HttpGet("order/user/{userId}")]
-        public async Task<IActionResult> GetOrdersByUser(int userId)
+        // lay danh sach don hang cua user da dang nhap va da dat hang
+        [Authorize(Roles = "Customer,Seller")]
+        [HttpGet("order/my")]
+        public async Task<IActionResult> GetMyOrders()
         {
+            int userId = int.Parse(User.FindFirst("userId")!.Value);
+
             var orders = await _context.Orders
                 .Where(o => o.UserId == userId)
                 .OrderByDescending(o => o.CreatedAt)
@@ -228,39 +254,40 @@ namespace ServerWebAPI.Controllers
                 })
                 .ToListAsync();
 
-            if (!orders.Any())
-                return NotFound(new { message = "Bạn chưa có đơn hàng nào" });
-
             return Ok(orders);
         }
 
+        // lay chi tiet tung don hang theo id
+        [Authorize(Roles = "Customer,Seller")]
         [HttpGet("order/{orderId}")]
         public async Task<IActionResult> GetOrderDetail(int orderId)
         {
+            int userId = int.Parse(User.FindFirst("userId")!.Value);
+
             var order = await _context.Orders
-                .Include(o => o.OrderItems) // Đổi Items -> OrderItems (theo Model chuẩn)
-                .ThenInclude(oi => oi.Product) // Kèm thông tin tên sản phẩm
-                .FirstOrDefaultAsync(o => o.Id == orderId);
-
-            if (order == null) return NotFound();
-
-            var result = new
-            {
-                orderId = order.Id,
-                createdAt = order.CreatedAt,
-                total = order.TotalAmount,
-                status = order.Status,
-                items = order.OrderItems.Select(oi => new
+                .Where(o => o.Id == orderId && o.UserId == userId)
+                .Select(o => new
                 {
-                    ProductName = oi.Product?.Name,
-                    Quantity = oi.Quantity,
-                    Price = oi.Price,
-                    SubTotal = oi.Price * (oi.Quantity ?? 0)
+                    orderId = o.Id,
+                    createdAt = o.CreatedAt,
+                    total = o.TotalAmount,
+                    status = o.Status,
+                    items = o.OrderItems.Select(oi => new
+                    {
+                        ProductName = oi.Product!.Name,
+                        Quantity = oi.Quantity,
+                        Price = oi.Price,
+                        SubTotal = oi.Price * oi.Quantity
+                    })
                 })
-            };
+                .FirstOrDefaultAsync();
 
-            return Ok(result);
+            if (order == null)
+                return NotFound(new { message = "Đơn hàng không tồn tại" });
+
+            return Ok(order);
         }
+
     }
 
     // ==========================================
