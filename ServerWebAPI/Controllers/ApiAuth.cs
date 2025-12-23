@@ -180,7 +180,7 @@ namespace ServerWebAPI.Controllers
                 claims: claims,
                 notBefore: DateTime.UtcNow,
                 expires: DateTime.UtcNow.AddHours(4),  
-                signingCredentials: creds
+                signingCredentials: creds   
             );
 
             return new JwtSecurityTokenHandler().WriteToken(token);
