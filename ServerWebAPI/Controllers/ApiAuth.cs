@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using ServerWebAPI.DataBase;
@@ -107,58 +108,6 @@ namespace ServerWebAPI.Controllers
             });
         }
 
-        // POST: auth/send-otp (Giữ nguyên tính năng cũ)
-        [HttpPost("send-otp")]
-        public async Task<IActionResult> SendOtp([FromBody] SendOtpRequest model)
-        {
-            if (model == null || string.IsNullOrWhiteSpace(model.Email))
-                return BadRequest(new { status = false, message = "Email không hợp lệ" });
-
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == model.Email);
-            if (user == null)
-                return NotFound(new { status = false, message = "Email không tồn tại trong hệ thống" });
-
-            string otp = GenerateOtp();
-
-            OtpStore[model.Email] = new OtpInfo
-            {
-                Code = otp,
-                ExpiredAt = DateTime.Now.AddMinutes(5)
-            };
-
-            // Demo in ra console (thực tế gửi mail)
-            Console.WriteLine($"OTP của {model.Email}: {otp}");
-
-            return Ok(new { status = true, message = "OTP đã được gửi (Check Console server)" });
-        }
-
-        // POST: auth/forgot-password (Giữ nguyên tính năng cũ)
-        [HttpPost("forgot-password")]
-        public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest model)
-        {
-            if (!OtpStore.ContainsKey(model.Email))
-                return BadRequest(new { status = false, message = "Vui lòng yêu cầu gửi OTP trước" });
-
-            var otpInfo = OtpStore[model.Email];
-            if (otpInfo.Code != model.OtpCode)
-                return BadRequest(new { status = false, message = "Mã OTP không đúng" });
-
-            if (DateTime.Now > otpInfo.ExpiredAt)
-                return BadRequest(new { status = false, message = "Mã OTP đã hết hạn" });
-
-            // OTP đúng -> Đổi mật khẩu
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == model.Email);
-            if (user != null)
-            {
-                user.PasswordHash = HashPassword(model.NewPassword);
-                await _context.SaveChangesAsync();
-                OtpStore.TryRemove(model.Email, out _); // Xóa OTP sau khi dùng
-                return Ok(new { status = true, message = "Đặt lại mật khẩu thành công" });
-            }
-
-            return BadRequest(new { status = false, message = "Lỗi xử lý" });
-        }
-
         private string GenerateJwtToken(User user, string role, int entityId)
         {
             var keyStr = _configuration["Jwt:Key"] ?? "Key_Must_Be_Very_Long_For_Security_Reasons_32Chars";
@@ -183,43 +132,171 @@ namespace ServerWebAPI.Controllers
 
             return new JwtSecurityTokenHandler().WriteToken(token);
         }
-    }
 
-    // ==========================================
-    // DTO CLASSES
-    // ==========================================
-    public class OtpInfo
-    {
-        public string Code { get; set; } = string.Empty;
-        public DateTime ExpiredAt { get; set; }
-    }
+        [Authorize]
+        [HttpPut("change-password")]
+        public async Task<IActionResult> ChangePassword([FromBody] ChangePassword model)
+        {
+            try
+            {
+                if (model == null)
+                    return BadRequest(new { status = false, message = "Dữ liệu không hợp lệ" });
 
-    public class RegisterDTO
-    {
-        public string Username { get; set; } = string.Empty;
-        public string Password { get; set; } = string.Empty;
-        public string Fullname { get; set; } = string.Empty;
-        public string Email { get; set; } = string.Empty;
-        public string Phone { get; set; } = string.Empty;
-        public string Address { get; set; } = string.Empty;
-    }
+                // Lấy userId từ token, jwt đã được xác thực bởi [Authorize]
+                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+                if (userIdClaim == null)
+                    return Unauthorized(new { status = false, message = "Token không hợp lệ" });
 
-    public class LoginDTO
-    {
-        public string Username { get; set; } = string.Empty;
-        public string Password { get; set; } = string.Empty;
-        public string? RoleRequest { get; set; }
-    }
+                int userId = int.Parse(userIdClaim.Value);
 
-    public class SendOtpRequest
-    {
-        public string Email { get; set; } = string.Empty;
-    }
+                var user = await _context.Users.FindAsync(userId);
+                if (user == null)
+                    return NotFound(new { status = false, message = "Không tìm thấy người dùng" });
 
-    public class ForgotPasswordRequest
-    {
-        public string Email { get; set; } = string.Empty;
-        public string OtpCode { get; set; } = string.Empty;
-        public string NewPassword { get; set; } = string.Empty;
+                // Kiểm tra mật khẩu cũ
+                if (user.PasswordHash != HashPassword(model.OldPassword))
+                {
+                    return BadRequest(new { status = false, message = "Mật khẩu cũ không đúng" });
+                }
+
+                // Mật khẩu mới không được rỗng
+                if (string.IsNullOrWhiteSpace(model.NewPassword))
+                {
+                    return BadRequest(new { status = false, message = "Mật khẩu mới không hợp lệ" });
+                }
+
+                // Mật khẩu mới phải khác mật khẩu cũ
+                if (HashPassword(model.NewPassword) == user.PasswordHash)
+                {
+                    return BadRequest(new { status = false, message = "Mật khẩu mới phải khác mật khẩu cũ" });
+                }
+
+                // Cập nhật mật khẩu mới
+                user.PasswordHash = HashPassword(model.NewPassword);
+                await _context.SaveChangesAsync();
+
+                return Ok(new
+                {
+                    status = true,
+                    message = "Thay đổi mật khẩu thành công"
+                });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { status = false, message = ex.Message });
+            }
+        }
+
+        [HttpPost("forgot-password")]
+        public async Task<IActionResult> ForgotPassword([FromBody] ForgotPassword model)
+        {
+            try
+            {
+                if (model == null)
+                    return BadRequest(new { status = false, message = "Dữ liệu không hợp lệ" });
+
+                var user = await _context.Users
+                    .FirstOrDefaultAsync(u => u.Email == model.Email);
+
+                if (user == null)
+                    return NotFound(new { status = false, message = "Email không tồn tại" });
+
+                // Kiểm tra OTP có tồn tại không
+                if (!OtpStore.ContainsKey(model.Email))
+                {
+                    return BadRequest(new
+                    {
+                        status = false,
+                        message = "OTP không tồn tại hoặc đã hết hạn"
+                    });
+                }
+
+                var otpInfo = OtpStore[model.Email];
+
+                // Kiểm tra hết hạn
+                if (otpInfo.ExpiredAt < DateTime.Now)
+                {
+                    OtpStore.TryRemove(model.Email, out _);
+                    return BadRequest(new
+                    {
+                        status = false,
+                        message = "OTP đã hết hạn"
+                    });
+                }
+
+                // Kiểm tra đúng OTP
+                if (otpInfo.Code != model.OTP)
+                {
+                    return BadRequest(new
+                    {
+                        status = false,
+                        message = "OTP không đúng"
+                    });
+                }
+
+                // Cập nhật mật khẩu mới
+                user.PasswordHash = HashPassword(model.NewPassword);
+                await _context.SaveChangesAsync();
+
+                OtpStore.TryRemove(model.Email, out _);
+
+                return Ok(new
+                {
+                    status = true,
+                    message = "Đặt lại mật khẩu thành công"
+                });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { status = false, message = ex.Message });
+            }
+        }
+
+        [HttpPost("send-otp")]
+        public async Task<IActionResult> SendOtp([FromBody] SendOtpRequest model)
+        {
+            if (model == null || string.IsNullOrWhiteSpace(model.Email))
+                return BadRequest(new { status = false, message = "Email không hợp lệ" });
+
+            var user = await _context.Users
+                .FirstOrDefaultAsync(u => u.Email == model.Email);
+
+            if (user == null)
+                return NotFound(new { status = false, message = "Email không tồn tại" });
+
+            string otp = GenerateOtp();
+
+            OtpStore[model.Email] = new OtpInfo
+            {
+                Code = otp,
+                ExpiredAt = DateTime.Now.AddMinutes(5)
+            };
+
+            // Demo gửi OTP qua email bằng cách in ra console
+            Console.WriteLine($"OTP của {model.Email}: {otp}");
+
+            return Ok(new
+            {
+                status = true,
+                message = "OTP đã được gửi"
+            });
+        }
+
+        public class RegisterDTO
+        {
+            public string Username { get; set; } = string.Empty;
+            public string Password { get; set; } = string.Empty;
+            public string Fullname { get; set; } = string.Empty;
+            public string Email { get; set; } = string.Empty;
+            public string Phone { get; set; } = string.Empty;
+            public string Address { get; set; } = string.Empty;
+        }
+
+        public class LoginDTO
+        {
+            public string Username { get; set; } = string.Empty;
+            public string Password { get; set; } = string.Empty;
+            public string? RoleRequest { get; set; }
+        }
     }
 }
