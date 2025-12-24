@@ -11,7 +11,7 @@ namespace ServerWebAPI.Models
 
         public int UserId { get; set; }
 
-        public int? ShipperId { get; set; } // Có thể Null (NULL trong SQL)
+        public int? ShipperId { get; set; } 
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
@@ -19,7 +19,7 @@ namespace ServerWebAPI.Models
         public decimal TotalAmount { get; set; }
 
         [StringLength(30)]
-        public string Status { get; set; } = "Pending";
+        public string Status { get; set; } = "Pending"; 
 
         [ForeignKey("UserId")]
         public User? User { get; set; }
@@ -27,7 +27,6 @@ namespace ServerWebAPI.Models
         [ForeignKey("ShipperId")]
         public Shipper? Shipper { get; set; }
 
-        // Navigation property để lấy danh sách món ăn
         public ICollection<OrderItem> OrderItems { get; set; } = new List<OrderItem>();
     }
 }

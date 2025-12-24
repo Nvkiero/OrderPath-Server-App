@@ -3,25 +3,44 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace ServerWebAPI.Models
 {
-    [Table("Shippers")]
     public class Shipper
     {
         [Key]
         public int Id { get; set; }
 
-        public int UserId { get; set; } // FK UNIQUE
+        public string CompanyName { get; set; } = string.Empty;
+        public string Phone { get; set; } = string.Empty;
+        public string VehicleType { get; set; } = string.Empty;
 
-        [StringLength(50)]
-        public string? Vehicle { get; set; }
-
-        [StringLength(30)]
-        public string Status { get; set; } = "Available";
-
-        // Thêm Rating vào đây
-        // Dùng double để lưu số lẻ (ví dụ 4.5 sao)
-        public double Rating { get; set; } = 5.0;
-
+        public int UserId { get; set; }
         [ForeignKey("UserId")]
-        public User? UserInfo { get; set; }
+        public User User { get; set; } = null!;
+
+        public ICollection<Order> Orders { get; set; } = new List<Order>();
+    }
+    public class ShipperProfileResponse
+    {
+        public int ShipperId { get; set; }
+        public string CompanyName { get; set; } = string.Empty;
+        public string Phone { get; set; } = string.Empty;
+        public string VehicleType { get; set; } = string.Empty;
+        public int TotalDeliveries { get; set; }
+    }
+
+    public class ShipperOrderResponse
+    {
+        public int OrderId { get; set; }
+        public string CustomerName { get; set; } = string.Empty;
+        public string ShippingAddress { get; set; } = string.Empty;
+        public string ProductName { get; set; } = string.Empty;
+        public int Quantity { get; set; }
+        public string CurrentStatus { get; set; } = string.Empty;
+        public DateTime OrderDate { get; set; }
+    }
+
+    public class UpdateStatusRequest
+    {
+        public int OrderId { get; set; }
+        public string NewStatus { get; set; } = string.Empty;
     }
 }
