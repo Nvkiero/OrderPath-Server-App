@@ -30,10 +30,8 @@ namespace ServerWebAPI.Models
 
         [StringLength(255)]
         public string? Address { get; set; }
+        [StringLength(255)]
+        public string? AvatarUrl { get; set; }
 
-        public DateTime Birth { get; set; }
-        public int Age { get; set; }
-
-        public string Role { get; set; } = "User"; // Thêm thuộc tính Role với giá trị mặc định là "User"
     }
 }
