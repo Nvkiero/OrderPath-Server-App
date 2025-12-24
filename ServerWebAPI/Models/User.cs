@@ -31,7 +31,12 @@ namespace ServerWebAPI.Models
         [StringLength(255)]
         public string? Address { get; set; }
         [StringLength(255)]
-        public string? AvatarUrl { get; set; }
+        public string? AvatarUrl { get; set; } = "https://i.pravatar.cc/300";
 
+        public DateTime Birth { get; set; }
+
+        public int Age { get; set; }
+
+        public string Role { get; set; } = "Customer";
     }
 }

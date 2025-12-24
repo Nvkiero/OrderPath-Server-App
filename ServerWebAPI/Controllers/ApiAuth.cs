@@ -72,7 +72,6 @@ namespace ServerWebAPI.Controllers
                 _context.Shippers.Add(new Shipper
                 {
                     UserId = user.Id,
-                    Status = "Available"
                 });
             }
             else if (req.Role == "Seller")
@@ -136,31 +135,6 @@ namespace ServerWebAPI.Controllers
                 role,
                 token
             });
-        }
-
-        // POST: auth/send-otp (Giữ nguyên tính năng cũ)
-        [HttpPost("send-otp")]
-        public async Task<IActionResult> SendOtp([FromBody] SendOtpRequest model)
-        {
-            if (model == null || string.IsNullOrWhiteSpace(model.Email))
-                return BadRequest(new { status = false, message = "Email không hợp lệ" });
-
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == model.Email);
-            if (user == null)
-                return NotFound(new { status = false, message = "Email không tồn tại trong hệ thống" });
-
-            string otp = GenerateOtp();
-
-            OtpStore[model.Email] = new OtpInfo
-            {
-                Code = otp,
-                ExpiredAt = DateTime.Now.AddMinutes(5)
-            };
-
-            // Demo in ra console (thực tế gửi mail)
-            Console.WriteLine($"OTP của {model.Email}: {otp}");
-
-            return Ok(new { status = true, message = "OTP đã được gửi (Check Console server)" });
         }
 
         // POST: auth/forgot-password (Giữ nguyên tính năng cũ)
@@ -368,25 +342,6 @@ namespace ServerWebAPI.Controllers
                 message = "OTP đã được gửi"
             });
         }
-
-        public class RegisterDTO
-        {
-            public string Username { get; set; } = string.Empty;
-            public string Password { get; set; } = string.Empty;
-            public string Fullname { get; set; } = string.Empty;
-            public string Email { get; set; } = string.Empty;
-            public string Phone { get; set; } = string.Empty;
-            public string Address { get; set; } = string.Empty;
-        }
-
-        public class LoginDTO
-        {
-            public string Username { get; set; } = string.Empty;
-            public string Password { get; set; } = string.Empty;
-            public string? RoleRequest { get; set; }
-
-
-
         // ==========================================
         // DTO CLASSES
         // ==========================================

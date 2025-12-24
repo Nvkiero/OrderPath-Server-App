@@ -33,9 +33,7 @@ namespace ServerWebAPI.Controllers
                 .Select(s => new ShipperProfileResponse
                 {
                     ShipperId = s.Id,
-                    CompanyName = s.CompanyName,
-                    Phone = s.Phone,
-                    VehicleType = s.VehicleType,
+                    VehicleType = s.Vehicle,
                     // Calculate total deliveries from the Orders collection
                     TotalDeliveries = s.Orders.Count()
                 })
