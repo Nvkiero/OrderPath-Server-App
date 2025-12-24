@@ -113,6 +113,7 @@ namespace ServerWebAPI.Controllers
         [HttpPost("cart/add")]
         public async Task<IActionResult> AddToCart([FromBody] AddCartRequest req)
         {
+
             if (req.Quantity <= 0)
                 return BadRequest(new { message = "Số lượng không hợp lệ" });
 
