@@ -47,25 +47,52 @@ namespace ServerWebAPI.Controllers
         [HttpPost("register")]
         public async Task<IActionResult> Register([FromBody] RegisterDTO req)
         {
-            // kiem tra username da ton tai
-            if (await _context.Users.AnyAsync(u => u.Username == req.Username))
-                return BadRequest(new { message = "Username đã tồn tại" });
-            // tao user moi
-            var newUser = new User
+            if (req == null)
+                return BadRequest("Dữ liệu không hợp lệ");
+
+            var user = new User
             {
                 Username = req.Username,
-                PasswordHash = HashPassword(req.Password), // Lưu pass đã mã hóa
+                PasswordHash = HashPassword(req.Password),
                 Fullname = req.Fullname,
                 Email = req.Email,
+                Birth = req.Birth,
                 Phone = req.Phone,
-                Address = req.Address
+                Age = req.Age,
+                Address = req.Address,
+                Role = req.Role
             };
-            // luu vao db
-            _context.Users.Add(newUser);
+
+            _context.Users.Add(user);
+            await _context.SaveChangesAsync(); // lấy user.Id
+
+            if (req.Role == "Shipper")
+            {
+                _context.Shippers.Add(new Shipper
+                {
+                    UserId = user.Id,
+                    Status = "Available"
+                });
+            }
+            else if (req.Role == "Seller")
+            {
+                _context.Shops.Add(new Shop
+                {
+                    UserId = user.Id,
+                    ShopName = $"{user.Username}'s shop"
+                });
+            }
+            else if (req.Role != "Customer")
+            {
+                return BadRequest("Role không hợp lệ");
+            }
+
             await _context.SaveChangesAsync();
 
-            return Ok(new { message = "Đăng ký thành công", userId = newUser.Id });
+            return Ok(new { message = "Đăng ký thành công" });
         }
+
+
 
         // POST: auth/login
         [HttpPost("login")]
@@ -163,8 +190,10 @@ namespace ServerWebAPI.Controllers
         }
         private string GenerateJwtToken(User user, string role, int entityId)
         {
-            var keyStr = _configuration["Jwt:Key"]!;
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(keyStr));
+            var key = new SymmetricSecurityKey(
+                Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]!)
+            );
+
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
             var claims = new List<Claim>
@@ -177,14 +206,19 @@ namespace ServerWebAPI.Controllers
             };
 
             var token = new JwtSecurityToken(
+                issuer: _configuration["Jwt:Issuer"],    
+                audience: _configuration["Jwt:Audience"],  
                 claims: claims,
                 notBefore: DateTime.UtcNow,
-                expires: DateTime.UtcNow.AddHours(4),  
+                expires: DateTime.UtcNow.AddMinutes(
+                    int.Parse(_configuration["Jwt:ExpiresInMinutes"]!)
+                ),
                 signingCredentials: creds
             );
 
             return new JwtSecurityTokenHandler().WriteToken(token);
         }
+
 
 
 
