@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authorization;
 using ServerWebAPI.DataBase;
 using ServerWebAPI.Models;
 
@@ -7,73 +8,87 @@ namespace ServerWebAPI.Controllers
 {
     [Route("shipper")]
     [ApiController]
-    public class ApiShipper : ControllerBase
+    [Authorize(Roles = "Shipper")] 
+    public class ShipperController : ControllerBase
     {
         private readonly AppDbContext _context;
 
-        public ApiShipper(AppDbContext context)
+        public ShipperController(AppDbContext context)
         {
             _context = context;
         }
 
-        // GET: shipper/orders
-        // Logic cũ: Lấy List Products. Logic mới: Lấy List Orders cần giao.
-        [HttpGet("orders")]
-        public async Task<IActionResult> GetShipperOrder()
+        private int GetCurrentShipperId()
         {
-            // Lấy các đơn hàng đang ở trạng thái "Shipping" và chưa có Shipper
-            var orders = await _context.Orders
-                .Where(o => o.Status == "Shipping" && o.ShipperId == null)
-                .Include(o => o.User)
-                .Select(o => new
+            var claim = User.Claims.FirstOrDefault(c => c.Type == "entityId");
+            if (claim == null) return 0;
+            return int.Parse(claim.Value);
+        }
+
+        [HttpGet("{id}")]
+        public async Task<IActionResult> GetProfile(int id)
+        {
+            var shipperProfile = await _context.Shippers
+                .Where(s => s.Id == id)
+                .Select(s => new ShipperProfileResponse
                 {
-                    Id = o.Id, // Order ID
-                    Name = "Đơn hàng của " + o.User.Fullname, // Fake tên product bằng tên đơn
-                    Price = o.TotalAmount, // Tổng tiền
-                    Address = o.User.Address,
-                    Date = o.CreatedAt
+                    ShipperId = s.Id,
+                    CompanyName = s.CompanyName,
+                    Phone = s.Phone,
+                    VehicleType = s.VehicleType,
+                    // Calculate total deliveries from the Orders collection
+                    TotalDeliveries = s.Orders.Count()
+                })
+                .FirstOrDefaultAsync();
+
+            if (shipperProfile == null) return NotFound("Shipper profile not found");
+
+            return Ok(shipperProfile);
+        }
+
+        [HttpGet("orders")]
+        public async Task<IActionResult> GetMyOrders()
+        {
+            int shipperId = GetCurrentShipperId();
+            if (shipperId == 0) return Unauthorized();
+
+            var orders = await _context.Orders
+                .Where(o => o.ShipperId == shipperId)
+                .Include(o => o.User)
+                .OrderByDescending(o => o.CreatedAt)
+                .Select(o => new ShipperOrderResponse
+                {
+                    OrderId = o.Id,
+                    CustomerName = o.User != null ? o.User.Fullname : "Unknown",
+                    ShippingAddress = o.User != null ? o.User.Address : "", 
+                    ProductName = o.OrderItems.Any() ? o.OrderItems.First().Product.Name : "Package",
+                    Quantity = o.OrderItems.Sum(oi => oi.Quantity ?? 0),
+                    CurrentStatus = o.Status,
+                    OrderDate = o.CreatedAt
                 })
                 .ToListAsync();
-
-            if (!orders.Any())
-            {
-                return NotFound("Không có đơn hàng nào cần vận chuyển");
-            }
 
             return Ok(orders);
         }
 
-        // GET: shipper/users/{id}
-        // Lấy thông tin Shipper Profile
-        [HttpGet("users/{id}")]
-        public async Task<IActionResult> GetShipperInfo(int id)
+        [HttpPost("update-status")]
+        public async Task<IActionResult> UpdateStatus([FromBody] UpdateStatusRequest request)
         {
-            var shipper = await _context.Shippers.FindAsync(id);
+            int shipperId = GetCurrentShipperId();
+            if (shipperId == 0) return Unauthorized();
 
-            if (shipper == null)
+            var order = await _context.Orders
+                .FirstOrDefaultAsync(o => o.Id == request.OrderId && o.ShipperId == shipperId);
+
+            if (order == null)
             {
-                return NotFound(new { message = $"Shipper hiện tại không tồn tại" });
+                return BadRequest("Order not found or not assigned to you.");
             }
 
-            return Ok(new
-            {
-                shipper.Id,
-                shipper.Vehicle,
-                shipper.Status,
-                shipper.Rating
-            });
-        }
-
-        // Thêm API nhận đơn để Shipper hoạt động được với luồng mới
-        [HttpPut("orders/{orderId}/accept")]
-        public async Task<IActionResult> AcceptOrder(int orderId, [FromQuery] int shipperId)
-        {
-            var order = await _context.Orders.FindAsync(orderId);
-            if (order == null) return NotFound();
-
-            order.ShipperId = shipperId;
+            order.Status = request.NewStatus;
             await _context.SaveChangesAsync();
-            return Ok(new { message = "Đã nhận đơn" });
+
+            return Ok(new { message = "Status updated successfully" });
         }
     }
 }
