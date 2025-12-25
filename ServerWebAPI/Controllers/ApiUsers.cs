@@ -4,7 +4,7 @@ using ServerWebAPI.Models;
 
 namespace ServerWebAPI.Controllers
 {
-    [Route("api/users")] // Route theo chuẩn cũ
+    [Route("users")] // Route theo chuẩn cũ
     [ApiController]
     public class ApiUsers : ControllerBase
     {
@@ -16,7 +16,7 @@ namespace ServerWebAPI.Controllers
         }
 
         // GET: api/users/{id}
-        [HttpGet("{id}")]
+        [HttpGet("profile")]
         public IActionResult GetById(int id)
         {
             var user = _context.Users.Find(id);

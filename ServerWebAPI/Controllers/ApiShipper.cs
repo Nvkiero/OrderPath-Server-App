@@ -25,8 +25,8 @@ namespace ServerWebAPI.Controllers
             return int.Parse(claim.Value);
         }
 
-        [HttpGet("{id}")]
-        public async Task<IActionResult> GetProfile(int id)
+        [HttpGet("profile")]
+        public async Task<IActionResult> GetProfile()
         {
             var shipperProfile = await _context.Shippers
                 .Where(s => s.UserId == id)
