@@ -19,10 +19,7 @@ namespace ServerWebAPI.Controllers
             _context = context;
         }
 
-        private int GetUserIdFromToken()
-        // GET: api/users/{id}
-        [HttpGet("profile")]
-        public IActionResult GetById(int id)
+        private int GetUserIdFromToken()        
         {
             return int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
         }
