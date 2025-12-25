@@ -24,7 +24,6 @@ namespace ServerWebAPI.Controllers
             return int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
         }
 
-        // GET: users/profile
         [HttpGet("profile")]
         public async Task<IActionResult> GetMyProfile()
         {
@@ -54,8 +53,7 @@ namespace ServerWebAPI.Controllers
             });
         }
 
-        // PUT: users/me
-        [HttpPut("me")]
+        [HttpPut("update-profile")]
         public async Task<IActionResult> UpdateProfile([FromBody] UpdateUserDTO dto)
         {
             int userId = GetUserIdFromToken();
@@ -77,8 +75,8 @@ namespace ServerWebAPI.Controllers
             await _context.SaveChangesAsync();
             return Ok(new { Message = "Update success", Status = true });
         }
-// PUT: api/users/me/change-password
-[HttpPut("me/change-password")]
+
+        [HttpPut("change-password")]
         public IActionResult ChangePassword([FromBody] ChangePasswordDTO dto)
         {
             int userId = GetUserIdFromToken();
@@ -99,8 +97,7 @@ namespace ServerWebAPI.Controllers
             return Ok(new { Message = "Password changed successfully", Status = true });
         }
 
-        // PUT: api/users/me/avatar
-        [HttpPut("me/avatar")]
+        [HttpPut("avatar")]
         public IActionResult UploadAvatar(IFormFile avatar)
         {
             int userId = GetUserIdFromToken();

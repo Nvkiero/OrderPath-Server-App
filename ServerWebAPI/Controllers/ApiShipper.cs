@@ -39,7 +39,7 @@ namespace ServerWebAPI.Controllers
                     ShipperId = s.Id,
                     Username = s.User != null ? s.User.Fullname : "Unknown",
                     Phone = s.User != null ? s.User.Phone : "",
-                    Vehicle = s.Vehicle,
+                    Vehicle = "Yamaha",
                     // Count orders assigned to this shipper
                     TotalDeliveries = _context.Orders.Count(o => o.ShipperId == s.Id)
                 })
@@ -57,17 +57,26 @@ namespace ServerWebAPI.Controllers
             if (shipperId == 0) return Unauthorized();
 
             var orders = await _context.Orders
-                .Where(o => o.ShipperId == shipperId)
+                // CHANGE HERE: Get orders assigned to ME -OR- orders with NO SHIPPER
+                .Where(o => o.ShipperId == shipperId || o.ShipperId == null)
                 .Include(o => o.User)
+                .Include(o => o.OrderItems)
+                    .ThenInclude(oi => oi.Product)
                 .OrderByDescending(o => o.CreatedAt)
                 .Select(o => new ShipperOrderResponse
                 {
                     OrderId = o.Id,
                     CustomerName = o.User != null ? o.User.Fullname : "Unknown",
-                    ShippingAddress = o.User != null ? o.User.Address : "", 
-                    ProductName = o.OrderItems.Any() ? o.OrderItems.First().Product.Name : "Package",
+                    ShippingAddress = o.User != null ? o.User.Address : "",
+
+                    // Join all product names into one string
+                    ProductName = string.Join(", ", o.OrderItems.Select(oi =>
+                        (oi.Product != null ? oi.Product.Name : "Unknown") + " x" + (oi.Quantity ?? 0))),
+
                     Quantity = o.OrderItems.Sum(oi => oi.Quantity ?? 0),
-                    CurrentStatus = o.Status,
+
+                    // IMPORTANT: If ShipperId is null, show "Available" or the actual status
+                    CurrentStatus = o.ShipperId == null ? "Available to Pick" : o.Status,
                     OrderDate = o.CreatedAt
                 })
                 .ToListAsync();
