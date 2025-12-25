@@ -1,11 +1,15 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using ServerWebAPI.DataBase;
 using ServerWebAPI.Models;
+using System.Security.Claims;
 
 namespace ServerWebAPI.Controllers
 {
     [Route("users")] // Route theo chuẩn cũ
     [ApiController]
+    [Authorize]
     public class ApiUsers : ControllerBase
     {
         private readonly AppDbContext _context;
@@ -19,58 +23,82 @@ namespace ServerWebAPI.Controllers
         [HttpGet("profile")]
         public IActionResult GetById(int id)
         {
-            var user = _context.Users.Find(id);
-            if (user == null)
-            {
-                return NotFound(new { Message = "User not found", Status = false });
-            }
-
-            return Ok(new
-            {
-                Message = "Success",
-                Status = true,
-                Data = new
-                {
-                    user.Id,
-                    user.Username,
-                    user.Fullname,
-                    user.Email,
-                    user.Phone,
-                    user.Address,
-                    // Bỏ Age, Birth vì DB mới không có
-                    Role = "User" // Giữ nguyên hardcode như file gốc
-                }
-            });
+            return int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
         }
 
-        // PUT: api/users/{id}
-        [HttpPut("{id}")]
-        public IActionResult UpdateProfile(int id, [FromBody] UpdateUserDTO dto)
+        // GET: api/users/me
+        [Authorize]
+        [HttpGet("profile")]
+        public async Task<IActionResult> GetMyProfile()
         {
-            var user = _context.Users.Find(id);
-            if (user == null) return NotFound(new { Message = "User not found", Status = false });
+            // Lấy userId từ JWT claim
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+            if (userIdClaim == null)
+                return Unauthorized(new { Message = "Unauthorized", Status = false });
 
-            user.Fullname = dto.Fullname;
-            user.Email = dto.Email;
-            user.Phone = dto.Phone;
-            user.Address = dto.Address;
+            if (!int.TryParse(userIdClaim.Value, out int userId))
+                return Unauthorized(new { Message = "Invalid token", Status = false });
+
+            // Lấy user từ DB
+            var user = await _context.Users
+                .AsNoTracking()
+                .FirstOrDefaultAsync(u => u.Id == userId);
+
+            if (user == null)
+                return NotFound(new { Message = "User not found", Status = false });
+
+            // Map sang DTO UserResponse
+            var response = new UserResponse
+            {
+                Status = true,
+                Message = "Success",
+                ID = user.Id,
+                Username = user.Username,
+                FullName = user.Fullname,
+                Birth = user.Birth,
+                Age = user.Age,
+                Email = user.Email,
+                Address = user.Address,
+                Role = user.Role,
+                Phone = user.Phone,
+                Avatar = user.AvatarUrl
+            };
+
+            return Ok(response);
+        }
+
+
+        // PUT: api/users/me
+        [HttpPut("me")]
+        public IActionResult UpdateProfile([FromBody] UpdateUserDTO dto)
+        {
+            int userId = GetUserIdFromToken();
+
+            var user = _context.Users.Find(userId);
+            if (user == null)
+                return NotFound(new { Message = "User not found", Status = false });
+
+            if (dto.Fullname != null) user.Fullname = dto.Fullname;
+            if (dto.Email != null) user.Email = dto.Email;
+            if (dto.Phone != null) user.Phone = dto.Phone;
+            if (dto.Address != null) user.Address = dto.Address;
 
             _context.SaveChanges();
-
             return Ok(new { Message = "Update success", Status = true });
         }
 
-        // PUT: api/users/{id}/change-password
-        [HttpPut("{id}/change-password")]
-        public IActionResult ChangePassword(int id, [FromBody] ChangePasswordDTO dto)
+        // PUT: api/users/me/change-password
+        [HttpPut("me/change-password")]
+        public IActionResult ChangePassword([FromBody] ChangePasswordDTO dto)
         {
-            var user = _context.Users.Find(id);
-            if (user == null) return NotFound();
+            int userId = GetUserIdFromToken();
 
-            // Check pass cũ (phải hash mới so sánh được)
-            string oldPassHash = ApiAuth.HashPassword(dto.OldPassword);
+            var user = _context.Users.Find(userId);
+            if (user == null)
+                return NotFound(new { Message = "User not found", Status = false });
 
-            if (user.PasswordHash != oldPassHash)
+            string oldHash = ApiAuth.HashPassword(dto.OldPassword);
+            if (user.PasswordHash != oldHash)
             {
                 return BadRequest(new { Message = "Old password incorrect", Status = false });
             }
@@ -81,21 +109,19 @@ namespace ServerWebAPI.Controllers
             return Ok(new { Message = "Password changed successfully", Status = true });
         }
 
-        // PUT: api/users/{id}/avatar (Giữ nguyên tính năng cũ)
-        [HttpPut("{id}/avatar")]
-        public IActionResult UploadAvatar(int id, IFormFile avatar)
+        // PUT: api/users/me/avatar
+        [HttpPut("me/avatar")]
+        public IActionResult UploadAvatar(IFormFile avatar)
         {
-            var user = _context.Users.Find(id);
+            int userId = GetUserIdFromToken();
+
+            var user = _context.Users.Find(userId);
             if (user == null)
-            {
                 return NotFound(new { Message = "User not found", Status = false });
-            }
 
-            // Demo: fake URL avatar như code cũ
-            string avatarUrl = $"https://server/avatar/user_{id}.jpg";
+            string avatarUrl = $"https://server/avatar/user_{userId}.jpg";
 
-            // Nếu muốn lưu tên file vào DB thì uncomment dòng dưới:
-            // user.Avatar = avatarUrl; 
+            // user.Avatar = avatarUrl;
             // _context.SaveChanges();
 
             return Ok(new
@@ -105,22 +131,5 @@ namespace ServerWebAPI.Controllers
                 Avatar = avatarUrl
             });
         }
-    }
-
-    // ==========================================
-    // DTO CLASSES
-    // ==========================================
-    public class UpdateUserDTO
-    {
-        public string? Fullname { get; set; }
-        public string? Email { get; set; }
-        public string? Phone { get; set; }
-        public string? Address { get; set; }
-    }
-
-    public class ChangePasswordDTO
-    {
-        public string OldPassword { get; set; } = string.Empty;
-        public string NewPassword { get; set; } = string.Empty;
     }
 }
