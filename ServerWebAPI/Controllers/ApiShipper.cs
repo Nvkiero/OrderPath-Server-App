@@ -25,21 +25,22 @@ namespace ServerWebAPI.Controllers
             return int.Parse(claim.Value);
         }
 
-        [HttpGet("{id}")]
-        public async Task<IActionResult> GetProfile(int id)
+        [HttpGet("profile")]
+        public async Task<IActionResult> GetProfile()
         {
             var shipperProfile = await _context.Shippers
-                .Where(s => s.Id == id)
+                .Where(s => s.UserId == id)
                 .Select(s => new ShipperProfileResponse
                 {
                     ShipperId = s.Id,
-                    VehicleType = s.Vehicle,
-                    // Calculate total deliveries from the Orders collection
+                    Username = s.User.Fullname ?? "Unknown",
+                    Phone = s.User.Phone ?? "",
+                    Vehicle = s.Vehicle,
                     TotalDeliveries = s.Orders.Count()
                 })
                 .FirstOrDefaultAsync();
 
-            if (shipperProfile == null) return NotFound("Shipper profile not found");
+            if (shipperProfile == null) return NotFound("Shipper profile not found for this user.");
 
             return Ok(shipperProfile);
         }
