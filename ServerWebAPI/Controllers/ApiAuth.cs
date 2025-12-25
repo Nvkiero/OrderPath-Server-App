@@ -159,16 +159,21 @@ namespace ServerWebAPI.Controllers
 
             var claims = new List<Claim>
             {
-                new Claim("userId", user.Id.ToString()),
+                // ✅ Claim chuẩn để GetMyProfile dùng
+                new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
                 new Claim(ClaimTypes.Name, user.Username),
                 new Claim(ClaimTypes.Role, role),
+
+                // Optional: entityId nếu role khác Customer
                 new Claim("entityId", entityId.ToString()),
+
+                // JWT ID để tránh replay attack
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
             };
 
             var token = new JwtSecurityToken(
-                issuer: _configuration["Jwt:Issuer"],    
-                audience: _configuration["Jwt:Audience"],  
+                issuer: _configuration["Jwt:Issuer"],
+                audience: _configuration["Jwt:Audience"],
                 claims: claims,
                 notBefore: DateTime.UtcNow,
                 expires: DateTime.UtcNow.AddMinutes(
@@ -179,6 +184,7 @@ namespace ServerWebAPI.Controllers
 
             return new JwtSecurityTokenHandler().WriteToken(token);
         }
+
 
         [Authorize]
         [HttpPut("change-password")]
