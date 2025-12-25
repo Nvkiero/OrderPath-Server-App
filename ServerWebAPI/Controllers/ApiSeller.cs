@@ -155,5 +155,34 @@ namespace ServerWebAPI.Controllers
 
             return Ok(orders);
         }
+
+        // Cập nhật trạng thái đơn hàng (xác nhận / hủy) 
+        [HttpPut("orders/{id}/status")]
+        public async Task<IActionResult> UpdateOrderStatus(int id, [FromBody] UpdateStatusReq req)
+        {
+            var shop = await GetMyShop();
+            if (shop == null) return BadRequest(new { message = "Bạn chưa có Shop" });
+
+            // 1. Tìm đơn hàng
+            var order = await _context.Orders.FindAsync(id);
+
+            if (order == null)
+            {
+                return NotFound(new { message = "Không tìm thấy đơn hàng" });
+            }
+
+
+            // 2. Cập nhật trạng thái
+            order.Status = req.Status;
+
+            // 3. Lưu vào Database
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = "Cập nhật trạng thái thành công: " + req.Status });
+        }
+    }
+    public class UpdateStatusReq
+    {
+        public string Status { get; set; }
     }
 }
