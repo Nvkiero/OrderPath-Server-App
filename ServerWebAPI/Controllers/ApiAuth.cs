@@ -9,6 +9,8 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
+using MailKit.Net.Smtp;
+using MimeKit;
 
 namespace ServerWebAPI.Controllers
 {
@@ -194,9 +196,8 @@ namespace ServerWebAPI.Controllers
             {
                 if (model == null)
                     return BadRequest(new { status = false, message = "Dữ liệu không hợp lệ" });
-
-                // lấy userId từ token
-                var userIdClaim = User.FindFirst("userId");
+                // Lấy userId từ token
+                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
                 if (userIdClaim == null)
                     return Unauthorized(new { status = false, message = "Token không hợp lệ" });
 
@@ -330,14 +331,45 @@ namespace ServerWebAPI.Controllers
                 ExpiredAt = DateTime.Now.AddMinutes(5)
             };
 
-            // Demo gửi OTP qua email bằng cách in ra console
-            Console.WriteLine($"OTP của {model.Email}: {otp}");
+            // GỬI OTP QUA GMAIL
+            await SendOtpEmailAsync(model.Email, otp);
 
             return Ok(new
             {
-                status = true,
-                message = "OTP đã được gửi"
+                message = "OTP đã được gửi tới email"
             });
         }
+
+        private async Task SendOtpEmailAsync(string toEmail, string otp)
+        {
+            var message = new MimeMessage();
+            message.From.Add(new MailboxAddress(
+                "OrderPath System",
+                _configuration["Gmail:Email"]
+            ));
+
+            message.To.Add(MailboxAddress.Parse(toEmail));
+            message.Subject = "Mã OTP đặt lại mật khẩu";
+
+            message.Body = new TextPart("html")
+            {
+                Text = $@"
+            <h3>Xin chào!</h3>
+            <p>Mã OTP của bạn là:</p>
+            <h2 style='color:red'>{otp}</h2>
+            <p>OTP có hiệu lực trong 5 phút.</p>
+        "
+            };
+
+            using var smtp = new SmtpClient();
+            await smtp.ConnectAsync("smtp.gmail.com", 587, false);
+            await smtp.AuthenticateAsync(
+                _configuration["Gmail:Email"],
+                _configuration["Gmail:AppPassword"]
+            );
+            await smtp.SendAsync(message);
+            await smtp.DisconnectAsync(true);
+        }
+
     }
 }
