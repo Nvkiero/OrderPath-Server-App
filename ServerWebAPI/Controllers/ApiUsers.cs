@@ -7,7 +7,7 @@ using System.Security.Claims;
 
 namespace ServerWebAPI.Controllers
 {
-    [Route("users")]
+    [Route("users")] // Route theo chuẩn cũ
     [ApiController]
     [Authorize] // Bắt buộc phải có Token mới vào được
     public class ApiUsers : ControllerBase
@@ -20,6 +20,9 @@ namespace ServerWebAPI.Controllers
         }
 
         private int GetUserIdFromToken()
+        // GET: api/users/{id}
+        [HttpGet("profile")]
+        public IActionResult GetById(int id)
         {
             return int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
         }
