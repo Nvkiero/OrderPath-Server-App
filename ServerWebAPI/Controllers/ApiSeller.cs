@@ -23,10 +23,10 @@ namespace ServerWebAPI.Controllers
         private async Task<Shop?> GetMyShop()
         {
             // Lấy userId từ Token
-            var userIdClaim = User.FindFirst("userId");
-            if (userIdClaim == null) return null;
 
-            int userId = int.Parse(userIdClaim.Value);
+            var userIdClaim = User.FindFirst("userId")?.Value
+                    ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            int userId = int.Parse(userIdClaim);
 
             // Tìm Shop sở hữu bởi userId này
             return await _context.Shops.FirstOrDefaultAsync(s => s.UserId == userId);
@@ -78,7 +78,7 @@ namespace ServerWebAPI.Controllers
             _context.Products.Add(newProduct);
             await _context.SaveChangesAsync();
 
-            return Ok(new { message = "Thêm sản phẩm thành công", productId = newProduct.Id });
+            return Ok(newProduct);
         }
 
         // Sửa sản phẩm 
