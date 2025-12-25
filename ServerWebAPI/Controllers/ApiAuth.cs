@@ -49,7 +49,29 @@ namespace ServerWebAPI.Controllers
         public async Task<IActionResult> Register([FromBody] RegisterDTO req)
         {
             if (req == null)
-                return BadRequest("Dữ liệu không hợp lệ");
+                return BadRequest(new { message = "Dữ liệu không hợp lệ" });
+
+            req.Username = req.Username?.Trim().ToLower();
+            req.Email = req.Email?.Trim().ToLower();
+
+            // Kiểm tra role hợp lệ trước
+            if (req.Role != "Customer" && req.Role != "Seller" && req.Role != "Shipper")
+                return BadRequest(new { message = "Role không hợp lệ" });
+
+            // Kiểm tra trùng Username hoặc Email
+            var existsUser = await _context.Users
+                .Where(u => u.Username == req.Username || u.Email == req.Email)
+                .Select(u => new { u.Username, u.Email })
+                .FirstOrDefaultAsync();
+
+            if (existsUser != null)
+            {
+                if (existsUser.Username == req.Username)
+                    return BadRequest(new { field = "username", message = "Username đã tồn tại" });
+
+                if (existsUser.Email == req.Email)
+                    return BadRequest(new { field = "email", message = "Email đã được sử dụng" });
+            }
 
             var user = new User
             {
@@ -65,14 +87,11 @@ namespace ServerWebAPI.Controllers
             };
 
             _context.Users.Add(user);
-            await _context.SaveChangesAsync(); // lấy user.Id
+            await _context.SaveChangesAsync();
 
             if (req.Role == "Shipper")
             {
-                _context.Shippers.Add(new Shipper
-                {
-                    UserId = user.Id,
-                });
+                _context.Shippers.Add(new Shipper { UserId = user.Id });
             }
             else if (req.Role == "Seller")
             {
@@ -82,17 +101,11 @@ namespace ServerWebAPI.Controllers
                     ShopName = $"{user.Username}'s shop"
                 });
             }
-            else if (req.Role != "Customer")
-            {
-                return BadRequest("Role không hợp lệ");
-            }
 
             await _context.SaveChangesAsync();
 
             return Ok(new { message = "Đăng ký thành công" });
         }
-
-
 
         // POST: auth/login
         [HttpPost("login")]
