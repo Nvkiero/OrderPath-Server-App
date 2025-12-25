@@ -7,10 +7,7 @@ namespace ServerWebAPI.Models
     {
         [Key]
         public int Id { get; set; }
-
-        public string CompanyName { get; set; } = string.Empty;
-        public string Phone { get; set; } = string.Empty;
-        public string VehicleType { get; set; } = string.Empty;
+        public string Vehicle { get; set; } = string.Empty;
 
         public int UserId { get; set; }
         [ForeignKey("UserId")]
@@ -21,9 +18,11 @@ namespace ServerWebAPI.Models
     public class ShipperProfileResponse
     {
         public int ShipperId { get; set; }
-        public string CompanyName { get; set; } = string.Empty;
-        public string Phone { get; set; } = string.Empty;
-        public string VehicleType { get; set; } = string.Empty;
+
+        public string Username {  get; set; }
+
+        public string Phone {  get; set; }
+        public string Vehicle { get; set; } = string.Empty;
         public int TotalDeliveries { get; set; }
     }
 
@@ -37,7 +36,6 @@ namespace ServerWebAPI.Models
         public string CurrentStatus { get; set; } = string.Empty;
         public DateTime OrderDate { get; set; }
     }
-
     public class UpdateStatusRequest
     {
         public int OrderId { get; set; }
