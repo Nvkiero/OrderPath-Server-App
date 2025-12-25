@@ -19,7 +19,7 @@ namespace ServerWebAPI.Controllers
             _context = context;
         }
 
-        private int GetUserIdFromToken()
+        private int GetUserIdFromToken()    
         {
             return int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
         }
