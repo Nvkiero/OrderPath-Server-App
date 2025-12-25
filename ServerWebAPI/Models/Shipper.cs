@@ -7,8 +7,7 @@ namespace ServerWebAPI.Models
     {
         [Key]
         public int Id { get; set; }
-        public string Vehicle { get; set; } = string.Empty;
-
+        public string ?Vehicle { get; set; } = string.Empty;
         public int UserId { get; set; }
         [ForeignKey("UserId")]
         public User User { get; set; } = null!;
