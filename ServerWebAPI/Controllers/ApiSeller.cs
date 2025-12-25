@@ -180,9 +180,47 @@ namespace ServerWebAPI.Controllers
 
             return Ok(new { message = "Cập nhật trạng thái thành công: " + req.Status });
         }
+
+        // DELETE: seller/orders/{id}
+        // API này nhận lệnh từ nút Xóa bên Client để xóa bay màu đơn hàng
+        [HttpDelete("orders/{id}")]
+        public async Task<IActionResult> DeleteOrder(int id)
+        {
+            var shop = await GetMyShop();
+            if (shop == null) return BadRequest(new { message = "Bạn chưa có Shop" });
+
+            // 1. Tìm đơn hàng trong Database
+            var order = await _context.Orders.FindAsync(id);
+            if (order == null) return NotFound(new { message = "Không tìm thấy đơn hàng" });
+
+            // 2. Kiểm tra xem đơn này có phải của Shop mình không?
+            // (Tránh trường hợp xóa nhầm đơn của shop khác)
+            bool isMyOrder = await _context.OrderItems
+                .AnyAsync(oi => oi.OrderId == id && oi.ShopId == shop.Id);
+
+            if (!isMyOrder)
+            {
+                return BadRequest(new { message = "Bạn không có quyền xóa đơn hàng này!" });
+            }
+
+            try
+            {
+                // 3. Thực hiện xóa
+                _context.Orders.Remove(order);
+                await _context.SaveChangesAsync();
+
+                return Ok(new { message = "Đã xóa đơn hàng vĩnh viễn" });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = "Lỗi khi xóa: " + ex.Message });
+            }
+        }
     }
     public class UpdateStatusReq
     {
         public string Status { get; set; }
     }
+
+
 }
