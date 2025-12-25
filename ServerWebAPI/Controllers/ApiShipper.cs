@@ -77,17 +77,19 @@ namespace ServerWebAPI.Controllers
             if (shipperId == 0) return Unauthorized();
 
             var order = await _context.Orders
-                .FirstOrDefaultAsync(o => o.Id == request.OrderId && o.ShipperId == shipperId);
+                .FirstOrDefaultAsync(o => o.Id == request.OrderId);
 
             if (order == null)
             {
-                return BadRequest("Order not found or not assigned to you.");
+                return NotFound("Order not found.");
             }
 
+            order.ShipperId = shipperId; 
             order.Status = request.NewStatus;
+
             await _context.SaveChangesAsync();
 
-            return Ok(new { message = "Status updated successfully" });
+            return Ok(new { message = "Status updated and shipper assigned successfully" });
         }
     }
 }
