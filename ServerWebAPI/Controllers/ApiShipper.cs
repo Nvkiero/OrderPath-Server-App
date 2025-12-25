@@ -28,20 +28,24 @@ namespace ServerWebAPI.Controllers
         [HttpGet("profile")]
         public async Task<IActionResult> GetProfile()
         {
-            int id = GetCurrentShipperId();
+            int shipperId = GetCurrentShipperId();
+            if (shipperId == 0) return Unauthorized();
+
             var shipperProfile = await _context.Shippers
-                .Where(s => s.UserId == id)
+                .Include(s => s.User) 
+                .Where(s => s.Id == shipperId)
                 .Select(s => new ShipperProfileResponse
                 {
                     ShipperId = s.Id,
-                    Username = s.User.Fullname ?? "Unknown",
-                    Phone = s.User.Phone ?? "",
+                    Username = s.User != null ? s.User.Fullname : "Unknown",
+                    Phone = s.User != null ? s.User.Phone : "",
                     Vehicle = s.Vehicle,
-                    TotalDeliveries = s.Orders.Count()
+                    // Count orders assigned to this shipper
+                    TotalDeliveries = _context.Orders.Count(o => o.ShipperId == s.Id)
                 })
                 .FirstOrDefaultAsync();
 
-            if (shipperProfile == null) return NotFound("Shipper profile not found for this user.");
+            if (shipperProfile == null) return NotFound("Shipper profile not found.");
 
             return Ok(shipperProfile);
         }
