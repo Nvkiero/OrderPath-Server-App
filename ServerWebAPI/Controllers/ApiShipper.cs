@@ -28,6 +28,7 @@ namespace ServerWebAPI.Controllers
         [HttpGet("profile")]
         public async Task<IActionResult> GetProfile()
         {
+            int id = GetCurrentShipperId();
             var shipperProfile = await _context.Shippers
                 .Where(s => s.UserId == id)
                 .Select(s => new ShipperProfileResponse
