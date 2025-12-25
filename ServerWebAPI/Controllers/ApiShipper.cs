@@ -56,15 +56,17 @@ namespace ServerWebAPI.Controllers
             int shipperId = GetCurrentShipperId();
             if (shipperId == 0) return Unauthorized();
 
+            // FIX: Get orders that are Unassigned (available) OR assigned to ME.
+            // This hides orders that belong to OTHER shippers.
             var orders = await _context.Orders
-                .Where(o => o.ShipperId == shipperId)
+                .Where(o => o.ShipperId == null || o.ShipperId == shipperId)
                 .Include(o => o.User)
                 .OrderByDescending(o => o.CreatedAt)
                 .Select(o => new ShipperOrderResponse
                 {
                     OrderId = o.Id,
                     CustomerName = o.User != null ? o.User.Fullname : "Unknown",
-                    ShippingAddress = o.User != null ? o.User.Address : "", 
+                    ShippingAddress = o.User != null ? o.User.Address : "",
                     ProductName = o.OrderItems.Any() ? o.OrderItems.First().Product.Name : "Package",
                     Quantity = o.OrderItems.Sum(oi => oi.Quantity ?? 0),
                     CurrentStatus = o.Status,
