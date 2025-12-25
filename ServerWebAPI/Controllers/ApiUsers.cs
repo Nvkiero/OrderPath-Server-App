@@ -1,12 +1,13 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using ServerWebAPI.DataBase;
 using ServerWebAPI.Models;
 using System.Security.Claims;
 
 namespace ServerWebAPI.Controllers
 {
-    [Route("api/users")]
+    [Route("users")]
     [ApiController]
     [Authorize]
     public class ApiUsers : ControllerBase
@@ -27,31 +28,46 @@ namespace ServerWebAPI.Controllers
         }
 
         // GET: api/users/me
-        [HttpGet("me")]
-        public IActionResult GetMyProfile()
+        [Authorize]
+        [HttpGet("profile")]
+        public async Task<IActionResult> GetMyProfile()
         {
-            int userId = GetUserIdFromToken();
+            // Lấy userId từ JWT claim
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+            if (userIdClaim == null)
+                return Unauthorized(new { Message = "Unauthorized", Status = false });
 
-            var user = _context.Users.Find(userId);
+            if (!int.TryParse(userIdClaim.Value, out int userId))
+                return Unauthorized(new { Message = "Invalid token", Status = false });
+
+            // Lấy user từ DB
+            var user = await _context.Users
+                .AsNoTracking()
+                .FirstOrDefaultAsync(u => u.Id == userId);
+
             if (user == null)
                 return NotFound(new { Message = "User not found", Status = false });
 
-            return Ok(new
+            // Map sang DTO UserResponse
+            var response = new UserResponse
             {
-                Message = "Success",
                 Status = true,
-                Data = new
-                {
-                    user.Id,
-                    user.Username,
-                    user.Fullname,
-                    user.Email,
-                    user.Phone,
-                    user.Address,
-                    Role = "User"
-                }
-            });
+                Message = "Success",
+                ID = user.Id,
+                Username = user.Username,
+                FullName = user.Fullname,
+                Birth = user.Birth,
+                Age = user.Age,
+                Email = user.Email,
+                Address = user.Address,
+                Role = user.Role,
+                Phone = user.Phone,
+                Avatar = user.AvatarUrl
+            };
+
+            return Ok(response);
         }
+
 
         // PUT: api/users/me
         [HttpPut("me")]
