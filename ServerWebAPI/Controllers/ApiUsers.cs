@@ -9,7 +9,7 @@ namespace ServerWebAPI.Controllers
 {
     [Route("users")]
     [ApiController]
-    [Authorize]
+    [Authorize] // Bắt buộc phải có Token mới vào được
     public class ApiUsers : ControllerBase
     {
         private readonly AppDbContext _context;
@@ -19,28 +19,17 @@ namespace ServerWebAPI.Controllers
             _context = context;
         }
 
- 
-        // Helper: lấy userId từ token
-        
         private int GetUserIdFromToken()
         {
             return int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
         }
 
-        // GET: api/users/me
-        [Authorize]
+        // GET: users/profile
         [HttpGet("profile")]
         public async Task<IActionResult> GetMyProfile()
         {
-            // Lấy userId từ JWT claim
-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
-            if (userIdClaim == null)
-                return Unauthorized(new { Message = "Unauthorized", Status = false });
+            int userId = GetUserIdFromToken();
 
-            if (!int.TryParse(userIdClaim.Value, out int userId))
-                return Unauthorized(new { Message = "Invalid token", Status = false });
-
-            // Lấy user từ DB
             var user = await _context.Users
                 .AsNoTracking()
                 .FirstOrDefaultAsync(u => u.Id == userId);
@@ -48,8 +37,7 @@ namespace ServerWebAPI.Controllers
             if (user == null)
                 return NotFound(new { Message = "User not found", Status = false });
 
-            // Map sang DTO UserResponse
-            var response = new UserResponse
+            return Ok(new UserResponse
             {
                 Status = true,
                 Message = "Success",
@@ -63,33 +51,34 @@ namespace ServerWebAPI.Controllers
                 Role = user.Role,
                 Phone = user.Phone,
                 Avatar = user.AvatarUrl
-            };
-
-            return Ok(response);
+            });
         }
 
-
-        // PUT: api/users/me
+        // PUT: users/me
         [HttpPut("me")]
-        public IActionResult UpdateProfile([FromBody] UpdateUserDTO dto)
+        public async Task<IActionResult> UpdateProfile([FromBody] UpdateUserDTO dto)
         {
             int userId = GetUserIdFromToken();
+            var user = await _context.Users.FindAsync(userId);
 
-            var user = _context.Users.Find(userId);
             if (user == null)
                 return NotFound(new { Message = "User not found", Status = false });
 
-            if (dto.Fullname != null) user.Fullname = dto.Fullname;
-            if (dto.Email != null) user.Email = dto.Email;
-            if (dto.Phone != null) user.Phone = dto.Phone;
-            if (dto.Address != null) user.Address = dto.Address;
+            // Cập nhật các trường nếu có dữ liệu gửi lên
+            if (!string.IsNullOrEmpty(dto.Fullname)) user.Fullname = dto.Fullname;
+            if (!string.IsNullOrEmpty(dto.Email)) user.Email = dto.Email;
+            if (!string.IsNullOrEmpty(dto.Phone)) user.Phone = dto.Phone;
+            if (!string.IsNullOrEmpty(dto.Address)) user.Address = dto.Address;
 
-            _context.SaveChanges();
+            // Cập nhật Age và Birth (đã thêm vào DTO)
+            if (dto.Age.HasValue) user.Age = dto.Age.Value;
+            if (dto.Birth.HasValue) user.Birth = dto.Birth.Value;
+
+            await _context.SaveChangesAsync();
             return Ok(new { Message = "Update success", Status = true });
         }
-
-        // PUT: api/users/me/change-password
-        [HttpPut("me/change-password")]
+// PUT: api/users/me/change-password
+[HttpPut("me/change-password")]
         public IActionResult ChangePassword([FromBody] ChangePasswordDTO dto)
         {
             int userId = GetUserIdFromToken();
