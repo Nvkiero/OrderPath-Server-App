@@ -133,7 +133,7 @@ namespace ServerWebAPI.Controllers
                 var shop = await _context.Shops.FirstOrDefaultAsync(s => s.UserId == user.Id);
                 if (shop != null)
                 {
-                    role = "Seller";
+                    role = "Shop";
                     entityId = shop.Id;
                 }
             }
@@ -158,18 +158,17 @@ namespace ServerWebAPI.Controllers
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
             var claims = new List<Claim>
-            {
-                // ✅ Claim chuẩn để GetMyProfile dùng
-                new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
-                new Claim(ClaimTypes.Name, user.Username),
-                new Claim(ClaimTypes.Role, role),
+             {
+                 new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
+                 new Claim(ClaimTypes.Name, user.Username),
+                 new Claim(ClaimTypes.Role, role),
 
-                // Optional: entityId nếu role khác Customer
-                new Claim("entityId", entityId.ToString()),
+                 // Optional: entityId nếu role khác Customer
+                 new Claim("entityId", entityId.ToString()),
 
-                // JWT ID để tránh replay attack
-                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
-            };
+                 // JWT ID để tránh replay attack
+                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+             };
 
             var token = new JwtSecurityToken(
                 issuer: _configuration["Jwt:Issuer"],
@@ -181,12 +180,10 @@ namespace ServerWebAPI.Controllers
                 ),
                 signingCredentials: creds
             );
-
             return new JwtSecurityTokenHandler().WriteToken(token);
         }
 
-
-        [Authorize]
+            [Authorize]
         [HttpPut("change-password")]
         public async Task<IActionResult> ChangePassword([FromBody] ChangePassword model)
         {

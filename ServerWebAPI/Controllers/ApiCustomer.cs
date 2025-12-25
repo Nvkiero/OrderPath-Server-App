@@ -92,8 +92,9 @@ namespace ServerWebAPI.Controllers
         [HttpGet("cart")]
         public async Task<IActionResult> GetCart()
         {
-            int userId = int.Parse(User.FindFirst("userId")!.Value);
-
+            var userIdClaim = User.FindFirst("userId")?.Value
+                    ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            int userId = int.Parse(userIdClaim);
             var cartItems = await _context.CartItems
                 .Where(c => c.UserId == userId && c.Product != null)
                 .Select(c => new CartItemDTO
@@ -117,7 +118,9 @@ namespace ServerWebAPI.Controllers
             if (req.Quantity <= 0)
                 return BadRequest(new { message = "Số lượng không hợp lệ" });
 
-            int userId = int.Parse(User.FindFirst("userId")!.Value);
+            var userIdClaim = User.FindFirst("userId")?.Value
+                    ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            int userId = int.Parse(userIdClaim);
 
             var product = await _context.Products
                 .FirstOrDefaultAsync(p => p.Id == req.ProductId && (p.Quantity ?? 0) > 0);
@@ -159,7 +162,9 @@ namespace ServerWebAPI.Controllers
             if (productId <= 0)
                 return BadRequest(new { message = "ProductId không hợp lệ" });
 
-            int userId = int.Parse(User.FindFirst("userId")!.Value);
+            var userIdClaim = User.FindFirst("userId")?.Value
+                    ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            int userId = int.Parse(userIdClaim);
 
             var cartItem = await _context.CartItems
                 .FirstOrDefaultAsync(c => c.UserId == userId && c.ProductId == productId);
@@ -179,7 +184,10 @@ namespace ServerWebAPI.Controllers
         [HttpPost("order/checkout")]
         public async Task<IActionResult> Checkout()
         {
-            int userId = int.Parse(User.FindFirst("userId")!.Value);
+            var userIdClaim = User.FindFirst("userId")?.Value
+                    ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            int userId = int.Parse(userIdClaim);
+
             // kiem tra gio hang co san pham chua de dat hang
             var cartItems = await _context.CartItems
                 .Where(c => c.UserId == userId && c.Product != null)
@@ -241,7 +249,9 @@ namespace ServerWebAPI.Controllers
         [HttpGet("order/my")]
         public async Task<IActionResult> GetMyOrders()
         {
-            int userId = int.Parse(User.FindFirst("userId")!.Value);
+            var userIdClaim = User.FindFirst("userId")?.Value
+                    ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            int userId = int.Parse(userIdClaim);
 
             var orders = await _context.Orders
                 .Where(o => o.UserId == userId)
@@ -263,7 +273,9 @@ namespace ServerWebAPI.Controllers
         [HttpGet("order/{orderId}")]
         public async Task<IActionResult> GetOrderDetail(int orderId)
         {
-            int userId = int.Parse(User.FindFirst("userId")!.Value);
+            var userIdClaim = User.FindFirst("userId")?.Value
+                    ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            int userId = int.Parse(userIdClaim);
 
             var order = await _context.Orders
                 .Where(o => o.Id == orderId && o.UserId == userId)
