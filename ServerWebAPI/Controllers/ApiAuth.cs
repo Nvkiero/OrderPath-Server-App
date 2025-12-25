@@ -133,7 +133,7 @@ namespace ServerWebAPI.Controllers
                 var shop = await _context.Shops.FirstOrDefaultAsync(s => s.UserId == user.Id);
                 if (shop != null)
                 {
-                    role = "Shop";
+                    role = "Seller";
                     entityId = shop.Id;
                 }
             }
