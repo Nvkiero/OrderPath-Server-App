@@ -49,7 +49,29 @@ namespace ServerWebAPI.Controllers
         public async Task<IActionResult> Register([FromBody] RegisterDTO req)
         {
             if (req == null)
-                return BadRequest("Dữ liệu không hợp lệ");
+                return BadRequest(new { message = "Dữ liệu không hợp lệ" });
+
+            req.Username = req.Username?.Trim().ToLower();
+            req.Email = req.Email?.Trim().ToLower();
+
+            // Kiểm tra role hợp lệ trước
+            if (req.Role != "Customer" && req.Role != "Seller" && req.Role != "Shipper")
+                return BadRequest(new { message = "Role không hợp lệ" });
+
+            // Kiểm tra trùng Username hoặc Email
+            var existsUser = await _context.Users
+                .Where(u => u.Username == req.Username || u.Email == req.Email)
+                .Select(u => new { u.Username, u.Email })
+                .FirstOrDefaultAsync();
+
+            if (existsUser != null)
+            {
+                if (existsUser.Username == req.Username)
+                    return BadRequest(new { field = "username", message = "Username đã tồn tại" });
+
+                if (existsUser.Email == req.Email)
+                    return BadRequest(new { field = "email", message = "Email đã được sử dụng" });
+            }
 
             var user = new User
             {
@@ -65,14 +87,11 @@ namespace ServerWebAPI.Controllers
             };
 
             _context.Users.Add(user);
-            await _context.SaveChangesAsync(); // lấy user.Id
+            await _context.SaveChangesAsync();
 
             if (req.Role == "Shipper")
             {
-                _context.Shippers.Add(new Shipper
-                {
-                    UserId = user.Id,
-                });
+                _context.Shippers.Add(new Shipper { UserId = user.Id });
             }
             else if (req.Role == "Seller")
             {
@@ -82,17 +101,11 @@ namespace ServerWebAPI.Controllers
                     ShopName = $"{user.Username}'s shop"
                 });
             }
-            else if (req.Role != "Customer")
-            {
-                return BadRequest("Role không hợp lệ");
-            }
 
             await _context.SaveChangesAsync();
 
             return Ok(new { message = "Đăng ký thành công" });
         }
-
-
 
         // POST: auth/login
         [HttpPost("login")]
@@ -240,71 +253,6 @@ namespace ServerWebAPI.Controllers
                 {
                     status = true,
                     message = "Thay đổi mật khẩu thành công"
-                });
-            }
-            catch (Exception ex)
-            {
-                return BadRequest(new { status = false, message = ex.Message });
-            }
-        }
-
-        [HttpPost("forgot-password")]
-        public async Task<IActionResult> ForgotPassword([FromBody] ForgotPassword model)
-        {
-            try
-            {
-                if (model == null)
-                    return BadRequest(new { status = false, message = "Dữ liệu không hợp lệ" });
-
-                var user = await _context.Users
-                    .FirstOrDefaultAsync(u => u.Email == model.Email);
-
-                if (user == null)
-                    return NotFound(new { status = false, message = "Email không tồn tại" });
-
-                // Kiểm tra OTP có tồn tại không
-                if (!OtpStore.ContainsKey(model.Email))
-                {
-                    return BadRequest(new
-                    {
-                        status = false,
-                        message = "OTP không tồn tại hoặc đã hết hạn"
-                    });
-                }
-
-                var otpInfo = OtpStore[model.Email];
-
-                // Kiểm tra hết hạn
-                if (otpInfo.ExpiredAt < DateTime.Now)
-                {
-                    OtpStore.TryRemove(model.Email, out _);
-                    return BadRequest(new
-                    {
-                        status = false,
-                        message = "OTP đã hết hạn"
-                    });
-                }
-
-                // Kiểm tra đúng OTP
-                if (otpInfo.Code != model.OTP)
-                {
-                    return BadRequest(new
-                    {
-                        status = false,
-                        message = "OTP không đúng"
-                    });
-                }
-
-                // Cập nhật mật khẩu mới
-                user.PasswordHash = HashPassword(model.NewPassword);
-                await _context.SaveChangesAsync();
-
-                OtpStore.TryRemove(model.Email, out _);
-
-                return Ok(new
-                {
-                    status = true,
-                    message = "Đặt lại mật khẩu thành công"
                 });
             }
             catch (Exception ex)
