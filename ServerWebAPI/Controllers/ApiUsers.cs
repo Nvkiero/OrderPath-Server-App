@@ -7,7 +7,7 @@ using System.Security.Claims;
 
 namespace ServerWebAPI.Controllers
 {
-    [Route("users")]
+    [Route("users")] // Route theo chuẩn cũ
     [ApiController]
     [Authorize] // Bắt buộc phải có Token mới vào được
     public class ApiUsers : ControllerBase

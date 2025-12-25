@@ -25,21 +25,22 @@ namespace ServerWebAPI.Controllers
             return int.Parse(claim.Value);
         }
 
-        [HttpGet("{id}")]
-        public async Task<IActionResult> GetProfile(int id)
+        [HttpGet("profile")]
+        public async Task<IActionResult> GetProfile()
         {
             var shipperProfile = await _context.Shippers
-                .Where(s => s.Id == id)
+                .Where(s => s.UserId == id)
                 .Select(s => new ShipperProfileResponse
                 {
                     ShipperId = s.Id,
-                    VehicleType = s.Vehicle,
-                    // Calculate total deliveries from the Orders collection
+                    Username = s.User.Fullname ?? "Unknown",
+                    Phone = s.User.Phone ?? "",
+                    Vehicle = s.Vehicle,
                     TotalDeliveries = s.Orders.Count()
                 })
                 .FirstOrDefaultAsync();
 
-            if (shipperProfile == null) return NotFound("Shipper profile not found");
+            if (shipperProfile == null) return NotFound("Shipper profile not found for this user.");
 
             return Ok(shipperProfile);
         }
@@ -76,17 +77,19 @@ namespace ServerWebAPI.Controllers
             if (shipperId == 0) return Unauthorized();
 
             var order = await _context.Orders
-                .FirstOrDefaultAsync(o => o.Id == request.OrderId && o.ShipperId == shipperId);
+                .FirstOrDefaultAsync(o => o.Id == request.OrderId);
 
             if (order == null)
             {
-                return BadRequest("Order not found or not assigned to you.");
+                return NotFound("Order not found.");
             }
 
+            order.ShipperId = shipperId; 
             order.Status = request.NewStatus;
+
             await _context.SaveChangesAsync();
 
-            return Ok(new { message = "Status updated successfully" });
+            return Ok(new { message = "Status updated and shipper assigned successfully" });
         }
     }
 }
